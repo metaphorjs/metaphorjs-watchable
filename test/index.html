@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="../../observable/metaphorjs.observable.js"></script>
+    <script src="../metaphorjs.watchable.js"></script>
+</head>
+<body>
+
+
+<script>
+
+    var test    = {
+        a: {
+           b: {
+              c: 1
+           }
+        }
+    };
+
+    var watcher;
+
+    var init = function() {
+        render();
+        watcher = new MetaphorJs.lib.Watchable(test, render);
+        watcher.setInterval(200);
+    };
+
+    var incr = function() {
+        test.a.b.c++;
+    };
+
+    var render = function() {
+
+    };
+
+</script>
+
+
+<button onclick="init()">Init</button>
+<button onclick="incr()">Change</button>
+
+<div id="render"></div>
+
+
+</body>
+</html>
