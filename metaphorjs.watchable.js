@@ -4,6 +4,27 @@
 
     "use strict";
 
+    if (typeof window == "undefined") {
+        global.window = global;
+    }
+
+    var Observable;
+
+    if (typeof global != "undefined") {
+        try {
+            Observable = require("metaphorjs-observable");
+        }
+        catch (e) {
+            if (global.Observable) {
+                Observable = global.Observable;
+            }
+        }
+    }
+    else if (window.MetaphorJs && MetaphorJs.lib && MetaphorJs.lib.Promise) {
+        Observable = MetaphorJs.lib.Observable;
+    }
+
+
     var REG_REPLACE_EXPR = /(^|[^a-z0-9_$])(\.)([^0-9])/ig,
         hashes     = {},
         randomHash = function() {
@@ -11,12 +32,13 @@
             return new Array(N+1).join((Math.random().toString(36)+'00000000000000000')
                 .slice(2, 18)).slice(0, N);
         },
-        nextHash    = MetaphorJs && MetaphorJs.nextUid ? MetaphorJs.nextUid : function() {
+        nextHash    = window.MetaphorJs && MetaphorJs.nextUid ? MetaphorJs.nextUid : function() {
             var hash    = randomHash();
             return !hashes[hash] ? (hashes[hash] = hash) : nextHash();
         },
+        toString    = Object.prototype.toString,
         isArray     = function(obj) {
-            return Object.prototype.toString.call(obj) === '[object Array]';
+            return toString.call(obj) === '[object Array]';
         },
         isObject    = function(value) {
             return value != null && typeof value === 'object';
@@ -33,15 +55,10 @@
         isWindow    = function(obj) {
             return obj && obj.document && obj.location && obj.alert && obj.setInterval;
         },
-        extend = function(trg) {
-            var i, j, len, src;
-
-            for (j = 1, len = arguments.length; j < len; j++) {
-                src     = arguments[j];
-                for (i in src) {
-                    if (src.hasOwnProperty(i)) {
-                        trg[i] = src[i];
-                    }
+        extend      = function(trg, src) {
+            for (var i in src) {
+                if (src.hasOwnProperty(i)) {
+                    trg[i] = src[i];
                 }
             }
         },
@@ -150,7 +167,6 @@
                 };
             }
 
-            // Базовые значения
             for (i = 0; i <= m; i++) {
                 D[i]    = new Array(n + 1);
                 P[i]    = new Array(n + 1);
@@ -167,17 +183,17 @@
                     cost = (!equals(S1[i - 1], S2[j - 1])) ? 1 : 0;
 
                     if(D[i][j - 1] < D[i - 1][j] && D[i][j - 1] < D[i - 1][j - 1] + cost) {
-                        //Вставка
+                        //Insert
                         D[i][j] = D[i][j - 1] + 1;
                         P[i][j] = 'I';
                     }
                     else if(D[i - 1][j] < D[i - 1][j - 1] + cost) {
-                        //Удаление
+                        //Delete
                         D[i][j] = D[i - 1][j] + 1;
                         P[i][j] = 'D';
                     }
                     else {
-                        //Замена или отсутствие операции
+                        //Replace or noop
                         D[i][j] = D[i - 1][j - 1] + cost;
                         if (cost == 1) {
                             P[i][j] = 'R';
@@ -189,7 +205,7 @@
                 }
             }
 
-            //Восстановление предписания
+            //Prescription
             route = [];
             i = m;
             j = n;
@@ -238,7 +254,7 @@
     var Watchable   = function(dataObj, code, fn, fnScope, userData) {
 
         if (!observable) {
-            observable  = new MetaphorJs.lib.Observable;
+            observable  = new Observable;
         }
 
         var self    = this,
@@ -299,6 +315,7 @@
         obj: null,
         itv: null,
         curr: null,
+        arraySlice: false,
 
         _checkCode: function() {
 
@@ -313,7 +330,7 @@
                 lev     = levenshteinArray(prev, val);
 
                 if (lev.changes) {
-                    self.curr   = copy(val);
+                    self.curr = val.slice();
                     observable.trigger(self.id, lev, val, prev);
                     return true;
                 }
@@ -353,7 +370,7 @@
                 lev     = levenshteinArray(curr, obj);
 
             if (lev.changes) {
-                self.curr   = copy(obj);
+                self.curr = obj.slice();
                 observable.trigger(self.id, lev, obj, curr);
                 return true;
             }
@@ -454,13 +471,13 @@
             if (self.itv) {
                 self.clearInterval();
             }
-            self.itv = window.setInterval(function(){self.check();}, ms);
+            self.itv = setInterval(function(){self.check();}, ms);
         },
 
         clearInterval: function() {
             var self    = this;
             if (self.itv) {
-                window.clearInterval(self.itv);
+                clearInterval(self.itv);
                 self.itv = null;
             }
         },
@@ -599,10 +616,9 @@
     if (window.MetaphorJs && MetaphorJs.r) {
         MetaphorJs.r("MetaphorJs.lib.Watchable", Watchable);
     }
-    else {
-        window.MetaphorJs   = window.MetaphorJs || {};
-        MetaphorJs.lib      = MetaphorJs.lib || {};
-        MetaphorJs.lib.Watchable = Watchable;
+
+    if (typeof global != "undefined") {
+        module.exports = Watchable;
     }
 
 }());
