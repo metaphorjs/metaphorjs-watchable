@@ -324,12 +324,10 @@
 
         _addPipe: function(pipes, pipe, dataObj) {
 
-            var name    = pipe[0],
+            var name    = pipe.shift(),
                 fn      = null,
                 ws      = [],
-                i, l,
-                expr,
-                first;
+                i, l;
 
             if (g) {
                 fn = g("filter." + name, true);
@@ -340,17 +338,10 @@
 
             if (typeof fn == "function") {
 
-                if (fn.$expectExpressions) {
-                    for (i = 1, l = pipe.length; i < l; i++) {
-                        expr = pipe[i];
-                        first = expr.substr(0,1);
-                        if (first != '"' && first != "'") {
-                            ws.push(create(dataObj, expr, self.check, self));
-                        }
-                    }
-                }
+                for (i = -1, l = pipe.length; ++i < l;
+                     ws.push(create(dataObj, pipe[i], self.check, self))) {}
 
-                pipes.push([fn, pipe.slice(1), ws]);
+                pipes.push([fn, pipe, ws]);
             }
         },
 
@@ -505,12 +496,19 @@
             if (pipes) {
                 var j,
                     args,
-                    jlen    = pipes.length;
+                    exprs,
+                    jlen    = pipes.length,
+                    dataObj = self.obj,
+                    z, zl;
 
                 for (j = 0; j < jlen; j++) {
-                    args    = pipes[j][1].slice();
+                    exprs   = pipes[j][1];
+                    args    = [];
+                    for (z = -1, zl = exprs.length; ++z < zl;
+                        args.push(evaluate(exprs[z], dataObj))){}
+
                     args.unshift(val);
-                    args.push(self.obj);
+                    args.push(dataObj);
                     val     = pipes[j][0].apply(null, args);
                 }
 
@@ -760,6 +758,22 @@
         return funcCache[expr];
     };
 
+    var evaluate = function(expr, scope) {
+        return createGetter(expr)(scope);
+    };
+
+    var isExpression = function(str) {
+        var first = str.substr(0,1);
+
+        if ((first == '"' || first == "'") && str.substr(str.length-1) == first) {
+            return false;
+        }
+        if (""+parseInt(str, 10) === str) {
+            return false;
+        }
+        return true;
+    };
+
     Watchable.create = create;
     Watchable.unsubscribeAndDestroy = unsubscribeAndDestroy;
     Watchable.normalizeExpr = normalizeExpr;
@@ -767,7 +781,8 @@
     Watchable.createGetter = createGetter;
     Watchable.createSetter = createSetter;
     Watchable.createFunc = createFunc;
-
+    Watchable.eval = evaluate;
+    Watchable.isExpression = isExpression;
 
     if (window.MetaphorJs && MetaphorJs.r) {
         MetaphorJs.r("MetaphorJs.lib.Watchable", Watchable);
