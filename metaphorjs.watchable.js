@@ -20,7 +20,7 @@
             }
         }
     }
-    else if (window.MetaphorJs && MetaphorJs.lib && MetaphorJs.lib.Promise) {
+    else if (window.MetaphorJs && MetaphorJs.lib && MetaphorJs.lib.Observable) {
         Observable = MetaphorJs.lib.Observable;
     }
 
@@ -33,7 +33,7 @@
                 .slice(2, 18)).slice(0, N);
         },
         nextHash    = window.MetaphorJs && MetaphorJs.nextUid ? MetaphorJs.nextUid : function() {
-            var hash    = randomHash();
+            var hash = randomHash();
             return !hashes[hash] ? (hashes[hash] = hash) : nextHash();
         },
         toString    = Object.prototype.toString,
@@ -236,7 +236,7 @@
                 prescription: route.reverse()
             };
         },
-        trim = MetaphorJs ? MetaphorJs.trim : (function() {
+        trim = window.MetaphorJs ? MetaphorJs.trim : (function() {
             // native trim is way faster: http://jsperf.com/angular-trim-test
             // but IE doesn't have it... :-(
             if (!String.prototype.trim) {
@@ -249,7 +249,11 @@
             };
         })(),
 
-        observable;
+        observable,
+
+        g = window.MetaphorJs ? MetaphorJs.ns.get : null;
+
+
 
     var Watchable   = function(dataObj, code, fn, fnScope, userData) {
 
@@ -261,7 +265,7 @@
             id      = nextHash(),
             type;
 
-        if (isArray(dataObj) && code == "array") {
+        if (isArray(dataObj) && code === null) {
             type    = "array";
         }
         else {
@@ -294,15 +298,15 @@
             });
         }
 
+        code            = self._processPipes(code, dataObj);
 
         self.code       = code;
-        self.getterFn   = type == "expr" ? Watchable.createGetter(code) : null;
+        self.getterFn   = type == "expr" ? createGetter(code) : null;
         self.id         = id;
         self.type       = type;
         self.obj        = dataObj;
         self.itv        = null;
         self.curr       = self._getValue();
-
     };
 
     extend(Watchable.prototype, {
@@ -316,6 +320,86 @@
         itv: null,
         curr: null,
         arraySlice: false,
+        pipes: null,
+
+        _addPipe: function(pipes, pipe, dataObj) {
+
+            var name    = pipe[0],
+                fn      = null,
+                ws      = [],
+                i, l,
+                expr,
+                first;
+
+            if (g) {
+                fn = g("filter." + name, true);
+            }
+            if (!fn) {
+                fn = window[name] || dataObj[name];
+            }
+
+            if (typeof fn == "function") {
+
+                if (fn.$expectExpressions) {
+                    for (i = 1, l = pipe.length; i < l; i++) {
+                        expr = pipe[i];
+                        first = expr.substr(0,1);
+                        if (first != '"' && first != "'") {
+                            ws.push(create(dataObj, expr, self.check, self));
+                        }
+                    }
+                }
+
+                pipes.push([fn, pipe.slice(1), ws]);
+            }
+        },
+
+        _processPipes: function(text, dataObj) {
+
+            var self        = this,
+                index       = 0,
+                textLength  = text.length,
+                pipes       = [],
+                pIndex,
+                prev, next, pipe,
+                found       = false,
+                ret         = text;
+
+            while(index < textLength) {
+
+                if ((pIndex  = text.indexOf('|', index)) != -1) {
+
+                    prev = text.charAt(pIndex -1);
+                    next = text.charAt(pIndex + 1);
+
+                    if (prev != '|' && prev != "'" && prev != '"' && next != '|' && next != "'" && next != '"') {
+                        if (!found) {
+                            found = true;
+                            ret = trim(text.substring(0, pIndex));
+                        }
+                        else {
+                            pipe = trim(text.substring(index, pIndex)).split(":");
+
+                            self._addPipe(pipes, pipe, dataObj);
+                        }
+                    }
+                    index = pIndex + 1;
+                }
+                else {
+                    if (found) {
+                        pipe = trim(text.substr(index)).split(":");
+                        self._addPipe(pipes, pipe, dataObj);
+                    }
+                    break;
+                }
+            }
+
+            if (pipes.length) {
+                self.pipes = pipes;
+            }
+
+            return ret;
+        },
 
         _checkCode: function() {
 
@@ -389,17 +473,49 @@
                     val = self.obj[self.code];
                     break;
                 case "expr":
-                    val = self.getterFn(self.obj);
+                    try {
+                        val = self.getterFn(self.obj);
+                    }
+                    catch (e) {
+                        if (window.MetaphorJs) {
+                            MetaphorJs.asyncError(e);
+                        }
+                        else {
+                            throw e;
+                        }
+                    }
+                    if (typeof val == "undefined") {
+                        val = "";
+                    }
                     break;
                 case "object":
-                    return copy(self.obj);
+                    val = copy(self.obj);
+                    break;
                 case "array":
-                    return self.obj.slice();
+                    val = self.obj;
+                    break;
             }
 
             if (isArray(val)) {
-                return val.slice();
+                val = val.slice();
             }
+
+            var pipes   = self.pipes;
+
+            if (pipes) {
+                var j,
+                    args,
+                    jlen    = pipes.length;
+
+                for (j = 0; j < jlen; j++) {
+                    args    = pipes[j][1].slice();
+                    args.unshift(val);
+                    args.push(self.obj);
+                    val     = pipes[j][0].apply(null, args);
+                }
+
+            }
+
 
             return val;
         },
@@ -420,21 +536,25 @@
 
         setValue: function(val) {
 
-            var self    = this;
+            var self    = this,
+                type    = self.type;
 
-            if (self.type == "attr") {
+            if (type == "attr") {
                 self.obj[self.code] = val;
             }
-            else if (self.type == "expr") {
+            else if (type == "expr") {
 
                 if (!self.setterFn) {
-                    self.setterFn   = Watchable.createSetter(self.code);
+                    self.setterFn   = createSetter(self.code);
                 }
 
                 self.setterFn(self.obj, val);
             }
+            else if (type == "array") {
+                self.obj = val;
+            }
             else {
-                throw new Error("Cannot set value");
+                throw "Cannot set value";
             }
         },
 
@@ -499,14 +619,28 @@
 
         destroy: function() {
 
-            var self    = this;
-
-            self.curr   = null;
-            self.obj    = null;
+            var self    = this,
+                pipes   = self.pipes,
+                i, il,
+                j, jl,
+                ws;
 
             if (self.itv) {
                 self.clearInterval();
             }
+
+            if (pipes) {
+                for (i = -1, il = pipes.length; ++i < il;) {
+                    ws = pipes[i][2];
+                    for (j = -1, jl = ws.length; ++j < jl;) {
+                        ws[j].unsubscribeAndDestroy(self.check, self);
+                    }
+                }
+            }
+
+            self.curr   = null;
+            self.obj    = null;
+            self.pipes  = null;
 
             observable.destroyEvent(self.id);
 
@@ -516,9 +650,10 @@
         }
     });
 
-    Watchable.create = function(obj, code, fn, fnScope, userData) {
 
-        code = Watchable.normalizeExpr(obj, trim(code));
+    var create = function(obj, code, fn, fnScope, userData) {
+
+        code = normalizeExpr(obj, trim(code));
 
         if (obj) {
             if (!obj.$$watchers) {
@@ -568,7 +703,7 @@
         }
     };
 
-    Watchable.unsubscribeAndDestroy = function(obj, code, fn, fnScope) {
+    var unsubscribeAndDestroy = function(obj, code, fn, fnScope) {
         code = trim(code);
 
         var ws = obj.$$watchers;
@@ -578,7 +713,7 @@
         }
     };
 
-    Watchable.normalizeExpr = function(dataObj, expr) {
+    var normalizeExpr = function(dataObj, expr) {
         if (dataObj && expr) {
             if (dataObj.hasOwnProperty(expr)) {
                 return expr;
@@ -594,24 +729,45 @@
         return expr;
     };
 
-    Watchable.prepareCode = function(expr) {
+    var f = Function;
+
+    var prepareCode = function prepareCode(expr) {
         return expr.replace(REG_REPLACE_EXPR, '$1____.$3');
     };
 
-    Watchable.createGetter = function(expr) {
-        expr = expr.replace(REG_REPLACE_EXPR, '$1____.$3');
-        return new Function('____', 'return ' + expr);
+    var getterCache = {};
+    var createGetter = function createGetter(expr) {
+        if (!getterCache[expr]) {
+            return getterCache[expr] = new f('____', 'return '.concat(expr.replace(REG_REPLACE_EXPR, '$1____.$3')));
+        }
+        return getterCache[expr];
     };
 
-    Watchable.createSetter = function(expr) {
-        expr = expr.replace(REG_REPLACE_EXPR, '$1____.$3');
-        return new Function('____', '$$$$', expr + ' = $$$$');
+    var setterCache = {};
+    var createSetter = function createSetter(expr) {
+        if (!setterCache[expr]) {
+            var code = expr.replace(REG_REPLACE_EXPR, '$1____.$3');
+            return setterCache[expr] = new f('____', '$$$$', code.concat(' = $$$$'));
+        }
+        return setterCache[expr];
     };
 
-    Watchable.createFunc = function(expr) {
-        expr = expr.replace(REG_REPLACE_EXPR, '$1____.$3');
-        return new Function('____', expr);
+    var funcCache = {};
+    var createFunc = function createFunc(expr) {
+        if (!funcCache[expr]) {
+            return funcCache[expr] = new f('____', expr.replace(REG_REPLACE_EXPR, '$1____.$3'));
+        }
+        return funcCache[expr];
     };
+
+    Watchable.create = create;
+    Watchable.unsubscribeAndDestroy = unsubscribeAndDestroy;
+    Watchable.normalizeExpr = normalizeExpr;
+    Watchable.prepareCode = prepareCode;
+    Watchable.createGetter = createGetter;
+    Watchable.createSetter = createSetter;
+    Watchable.createFunc = createFunc;
+
 
     if (window.MetaphorJs && MetaphorJs.r) {
         MetaphorJs.r("MetaphorJs.lib.Watchable", Watchable);
