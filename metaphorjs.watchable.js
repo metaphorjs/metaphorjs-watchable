@@ -774,6 +774,18 @@
         return true;
     };
 
+    var isNativeString = function(str) {
+        if (typeof str != "string") {
+            return false;
+        }
+        var first = str.substr(0,1);
+        return !(first == '"' || first == "'" || first == ".");
+    };
+
+    var toExpression = function(str) {
+        return isNativeString(str) ? "'" + str + "'" : str;
+    };
+
     Watchable.create = create;
     Watchable.unsubscribeAndDestroy = unsubscribeAndDestroy;
     Watchable.normalizeExpr = normalizeExpr;
@@ -783,6 +795,8 @@
     Watchable.createFunc = createFunc;
     Watchable.eval = evaluate;
     Watchable.isExpression = isExpression;
+    Watchable.isNativeString = isNativeString;
+    Watchable.toExpression = toExpression;
 
     if (window.MetaphorJs && MetaphorJs.r) {
         MetaphorJs.r("MetaphorJs.lib.Watchable", Watchable);
