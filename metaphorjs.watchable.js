@@ -332,6 +332,7 @@
         arraySlice: false,
         pipes: null,
         inputPipes: null,
+        lastSetValue: null,
 
 
         _processInputPipes: function(text, dataObj) {
@@ -356,7 +357,7 @@
                     if (prev != '\\' && prev != "'" && prev != '"' && next != "'" && next != '"') {
                         pipe = trim(text.substring(index, pIndex)).split(":");
                         ret = text.substr(pIndex + 2);
-                        self._addPipe(pipes, pipe, dataObj);
+                        self._addPipe(pipes, pipe, dataObj, self.onInputParamChange);
                     }
 
                     index = pIndex + 2;
@@ -370,9 +371,10 @@
         },
 
 
-        _addPipe: function(pipes, pipe, dataObj) {
+        _addPipe: function(pipes, pipe, dataObj, onParamChange) {
 
-            var name    = pipe.shift(),
+            var self    = this,
+                name    = pipe.shift(),
                 fn      = null,
                 ws      = [],
                 i, l;
@@ -387,7 +389,7 @@
             if (typeof fn == "function") {
 
                 for (i = -1, l = pipe.length; ++i < l;
-                     ws.push(create(dataObj, pipe[i], self.check, self))) {}
+                     ws.push(create(dataObj, pipe[i], onParamChange, self))) {}
 
                 pipes.push([fn, pipe, ws]);
             }
@@ -431,7 +433,7 @@
                 else {
                     if (found) {
                         pipe = trim(text.substr(index)).split(":");
-                        self._addPipe(pipes, pipe, dataObj);
+                        self._addPipe(pipes, pipe, dataObj, self.check);
                     }
                     break;
                 }
@@ -599,6 +601,8 @@
             var self    = this,
                 type    = self.type;
 
+            self.lastSetValue = val;
+
             val = self._runThroughPipes(val, self.inputPipes);
 
             if (type == "attr") {
@@ -618,6 +622,10 @@
             else {
                 throw "Cannot set value";
             }
+        },
+
+        onInputParamChange: function() {
+            this.setValue(this.lastSetValue);
         },
 
         check: function() {
@@ -683,6 +691,7 @@
 
             var self    = this,
                 pipes   = self.pipes,
+                ipipes  = self.inputPipes,
                 i, il,
                 j, jl,
                 ws;
@@ -699,6 +708,18 @@
                     }
                 }
             }
+            if (ipipes) {
+                for (i = -1, il = ipipes.length; ++i < il;) {
+                    ws = ipipes[i][2];
+                    for (j = -1, jl = ws.length; ++j < jl;) {
+                        ws[j].unsubscribeAndDestroy(self.onInputParamChange, self);
+                    }
+                }
+            }
+
+            if (self.obj) {
+                delete self.obj.$$watchers[self.code];
+            }
 
             self.curr   = null;
             self.obj    = null;
@@ -706,9 +727,6 @@
 
             observable.destroyEvent(self.id);
 
-            if (self.obj) {
-                delete self.obj.$$watchers[self.code];
-            }
         }
     });
 
