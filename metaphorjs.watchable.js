@@ -14,7 +14,7 @@
         try {
             Observable = require("metaphorjs-observable");
         }
-        catch (e) {
+        catch (thrownError) {
             if (global.Observable) {
                 Observable = global.Observable;
             }
@@ -298,6 +298,7 @@
             });
         }
 
+        code            = self._processInputPipes(code, dataObj);
         code            = self._processPipes(code, dataObj);
 
         self.code       = code;
@@ -321,6 +322,44 @@
         curr: null,
         arraySlice: false,
         pipes: null,
+        inputPipes: null,
+
+
+        _processInputPipes: function(text, dataObj) {
+
+            if (text.indexOf('>>') == -1) {
+                return text;
+            }
+
+            var self        = this,
+                index       = 0,
+                textLength  = text.length,
+                pipes       = [],
+                pIndex,
+                prev, next, pipe,
+                ret         = text;
+
+            while(index < textLength && (pIndex  = text.indexOf('>>', index)) != -1) {
+
+                    prev = text.charAt(pIndex -1);
+                    next = text.charAt(pIndex + 2);
+
+                    if (prev != '\\' && prev != "'" && prev != '"' && next != "'" && next != '"') {
+                        pipe = trim(text.substring(index, pIndex)).split(":");
+                        ret = text.substr(pIndex + 2);
+                        self._addPipe(pipes, pipe, dataObj);
+                    }
+
+                    index = pIndex + 2;
+            }
+
+            if (pipes.length) {
+                self.inputPipes = pipes;
+            }
+
+            return trim(ret);
+        },
+
 
         _addPipe: function(pipes, pipe, dataObj) {
 
@@ -346,6 +385,10 @@
         },
 
         _processPipes: function(text, dataObj) {
+
+            if (text.indexOf('|') == -1) {
+                return text;
+            }
 
             var self        = this,
                 index       = 0,
@@ -467,9 +510,9 @@
                     try {
                         val = self.getterFn(self.obj);
                     }
-                    catch (e) {
+                    catch (thrownError) {
                         if (window.MetaphorJs) {
-                            MetaphorJs.asyncError(e);
+                            MetaphorJs.error(thrownError);
                         }
                         else {
                             throw e;
@@ -491,12 +534,18 @@
                 val = val.slice();
             }
 
-            var pipes   = self.pipes;
+            val = self._runThroughPipes(val, self.pipes);
+
+            return val;
+        },
+
+        _runThroughPipes: function(val, pipes) {
 
             if (pipes) {
                 var j,
                     args,
                     exprs,
+                    self    = this,
                     jlen    = pipes.length,
                     dataObj = self.obj,
                     z, zl;
@@ -505,19 +554,16 @@
                     exprs   = pipes[j][1];
                     args    = [];
                     for (z = -1, zl = exprs.length; ++z < zl;
-                        args.push(evaluate(exprs[z], dataObj))){}
+                         args.push(evaluate(exprs[z], dataObj))){}
 
                     args.unshift(val);
                     args.push(dataObj);
                     val     = pipes[j][0].apply(null, args);
                 }
-
             }
-
 
             return val;
         },
-
 
         addListener: function(fn, fnScope, options) {
             return observable.on(this.id, fn, fnScope, options);
@@ -527,6 +573,13 @@
             return observable.un(this.id, fn, fnScope);
         },
 
+        hasPipes: function() {
+            return this.pipes !== null;
+        },
+
+        hasInputPipes: function() {
+            return this.inputPipes != null;
+        },
 
         getValue: function() {
             return this._getValue();
@@ -536,6 +589,8 @@
 
             var self    = this,
                 type    = self.type;
+
+            val = self._runThroughPipes(val, self.inputPipes);
 
             if (type == "attr") {
                 self.obj[self.code] = val;
@@ -727,7 +782,13 @@
         return expr;
     };
 
-    var f = Function;
+    var f           = Function,
+        error       = MetaphorJs.error,
+        fnBodyStart = 'try {',
+        fnBodyEnd   = ';} catch (thrownError) { watchableError(thrownError); }';
+
+    typeof window != "undefined" && (window.watchableError = error);
+    typeof global != "undefined" && (global.watchableError = error);
 
     var prepareCode = function prepareCode(expr) {
         return expr.replace(REG_REPLACE_EXPR, '$1____.$3');
@@ -736,7 +797,10 @@
     var getterCache = {};
     var createGetter = function createGetter(expr) {
         if (!getterCache[expr]) {
-            return getterCache[expr] = new f('____', 'return '.concat(expr.replace(REG_REPLACE_EXPR, '$1____.$3')));
+            return getterCache[expr] = new f(
+                '____',
+                "".concat(fnBodyStart, 'return ', expr.replace(REG_REPLACE_EXPR, '$1____.$3'), fnBodyEnd)
+            );
         }
         return getterCache[expr];
     };
@@ -745,7 +809,11 @@
     var createSetter = function createSetter(expr) {
         if (!setterCache[expr]) {
             var code = expr.replace(REG_REPLACE_EXPR, '$1____.$3');
-            return setterCache[expr] = new f('____', '$$$$', code.concat(' = $$$$'));
+            return setterCache[expr] = new f(
+                '____',
+                '$$$$',
+                "".concat(fnBodyStart, code, ' = $$$$', fnBodyEnd)
+            );
         }
         return setterCache[expr];
     };
@@ -753,7 +821,10 @@
     var funcCache = {};
     var createFunc = function createFunc(expr) {
         if (!funcCache[expr]) {
-            return funcCache[expr] = new f('____', expr.replace(REG_REPLACE_EXPR, '$1____.$3'));
+            return funcCache[expr] = new f(
+                '____',
+                "".concat(fnBodyStart, expr.replace(REG_REPLACE_EXPR, '$1____.$3'), fnBodyEnd)
+            );
         }
         return funcCache[expr];
     };
@@ -762,29 +833,6 @@
         return createGetter(expr)(scope);
     };
 
-    var isExpression = function(str) {
-        var first = str.substr(0,1);
-
-        if ((first == '"' || first == "'") && str.substr(str.length-1) == first) {
-            return false;
-        }
-        if (""+parseInt(str, 10) === str) {
-            return false;
-        }
-        return true;
-    };
-
-    var isNativeString = function(str) {
-        if (typeof str != "string") {
-            return false;
-        }
-        var first = str.substr(0,1);
-        return !(first == '"' || first == "'" || first == ".");
-    };
-
-    var toExpression = function(str) {
-        return isNativeString(str) ? "'" + str + "'" : str;
-    };
 
     Watchable.create = create;
     Watchable.unsubscribeAndDestroy = unsubscribeAndDestroy;
@@ -794,9 +842,6 @@
     Watchable.createSetter = createSetter;
     Watchable.createFunc = createFunc;
     Watchable.eval = evaluate;
-    Watchable.isExpression = isExpression;
-    Watchable.isNativeString = isNativeString;
-    Watchable.toExpression = toExpression;
 
     if (window.MetaphorJs && MetaphorJs.r) {
         MetaphorJs.r("MetaphorJs.lib.Watchable", Watchable);
