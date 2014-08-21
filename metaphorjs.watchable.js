@@ -298,8 +298,15 @@
             });
         }
 
-        code            = self._processInputPipes(code, dataObj);
-        code            = self._processPipes(code, dataObj);
+        if (type == "expr") {
+            code        = self._processInputPipes(code, dataObj);
+            code        = self._processPipes(code, dataObj);
+
+            if (self.inputPipes || self.pipes) {
+                code    = normalizeExpr(dataObj, code);
+                type    = dataObj.hasOwnProperty(code) ? "attr" : "expr";
+            }
+        }
 
         self.code       = code;
         self.getterFn   = type == "expr" ? createGetter(code) : null;
@@ -307,7 +314,9 @@
         self.type       = type;
         self.obj        = dataObj;
         self.itv        = null;
+
         self.curr       = self._getValue();
+
     };
 
     extend(Watchable.prototype, {
@@ -556,8 +565,8 @@
                     for (z = -1, zl = exprs.length; ++z < zl;
                          args.push(evaluate(exprs[z], dataObj))){}
 
+                    args.unshift(dataObj);
                     args.unshift(val);
-                    args.push(dataObj);
                     val     = pipes[j][0].apply(null, args);
                 }
             }
