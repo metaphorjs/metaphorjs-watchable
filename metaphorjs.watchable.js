@@ -576,11 +576,11 @@
             return val;
         },
 
-        addListener: function(fn, fnScope, options) {
+        subscribe: function(fn, fnScope, options) {
             return observable.on(this.id, fn, fnScope, options);
         },
 
-        removeListener: function(fn, fnScope) {
+        unsubscribe: function(fn, fnScope) {
             return observable.un(this.id, fn, fnScope);
         },
 
@@ -733,133 +733,219 @@
 
     var create = function(obj, code, fn, fnScope, userData) {
 
-        code = normalizeExpr(obj, trim(code));
+            code = normalizeExpr(obj, trim(code));
 
-        if (obj) {
-            if (!obj.$$watchers) {
-                obj.$$watchers = {
-                    $checkAll: function() {
+            if (obj) {
+                if (!obj.$$watchers) {
+                    obj.$$watchers = {
+                        $checkAll: function() {
 
-                        var self    = this,
-                            i,
-                            changes = 0;
+                            var self    = this,
+                                i,
+                                changes = 0;
 
-                        for (i in self) {
+                            for (i in self) {
 
-                            if (i.charAt(0) != '$' && self[i].check()) {
-                                changes++;
+                                if (i.charAt(0) != '$' && self[i].check()) {
+                                    changes++;
+                                }
+                                else if (i.charAt(0) == '$' && self[i] instanceof Watchable && self[i].check()) {
+                                    changes++;
+                                }
                             }
-                            else if (i.charAt(0) == '$' && self[i] instanceof Watchable && self[i].check()) {
-                                changes++;
+
+                            return changes;
+                        },
+                        $destroyAll: function() {
+
+                            var self    = this,
+                                i;
+
+                            for (i in self) {
+                                if (i.charAt(0) != '$' || self[i] instanceof Watchable) {
+                                    self[i].destroy();
+                                    delete self[i];
+                                }
                             }
                         }
+                    };
+                }
 
-                        return changes;
-                    },
-                    $destroyAll: function() {
+                if (obj.$$watchers[code]) {
+                    obj.$$watchers[code].subscribe(fn, fnScope, {append: [userData], allowDupes: true});
+                }
+                else {
+                    obj.$$watchers[code] = new Watchable(obj, code, fn, fnScope, userData);
+                }
 
-                        var self    = this,
-                            i;
-
-                        for (i in self) {
-                            if (i.charAt(0) != '$' || self[i] instanceof Watchable) {
-                                self[i].destroy();
-                                delete self[i];
-                            }
-                        }
-                    }
-                };
-            }
-            if (obj.$$watchers[code]) {
-                obj.$$watchers[code].addListener(fn, fnScope, {append: [userData], allowDupes: true});
+                return obj.$$watchers[code];
             }
             else {
-                obj.$$watchers[code] = new Watchable(obj, code, fn, fnScope, userData);
+                return new Watchable(obj, code, fn, fnScope, userData);
             }
-            return obj.$$watchers[code];
-        }
-        else {
-            return new Watchable(obj, code, fn, fnScope, userData);
-        }
-    };
+        },
 
-    var unsubscribeAndDestroy = function(obj, code, fn, fnScope) {
-        code = trim(code);
+        unsubscribeAndDestroy = function(obj, code, fn, fnScope) {
+            code = trim(code);
 
-        var ws = obj.$$watchers;
+            var ws = obj.$$watchers;
 
-        if (ws && ws[code] && ws[code].unsubscribeAndDestroy(fn, fnScope)) {
-            delete ws[code];
-        }
-    };
-
-    var normalizeExpr = function(dataObj, expr) {
-        if (dataObj && expr) {
-            if (dataObj.hasOwnProperty(expr)) {
-                return expr;
+            if (ws && ws[code] && ws[code].unsubscribeAndDestroy(fn, fnScope)) {
+                delete ws[code];
             }
-            var prop;
-            if (expr.charAt(0) == '.') {
-                prop = expr.substr(1);
-                if (dataObj.hasOwnProperty(prop)) {
-                    return prop;
+        },
+
+        normalizeExpr = function(dataObj, expr) {
+            if (dataObj && expr) {
+                if (dataObj.hasOwnProperty(expr)) {
+                    return expr;
+                }
+                var prop;
+                if (expr.charAt(0) == '.') {
+                    prop = expr.substr(1);
+                    if (dataObj.hasOwnProperty(prop)) {
+                        return prop;
+                    }
                 }
             }
-        }
-        return expr;
-    };
+            return expr;
+        },
 
-    var f           = Function,
-        error       = MetaphorJs.error,
-        fnBodyStart = 'try {',
-        fnBodyEnd   = ';} catch (thrownError) { watchableError(thrownError); }';
 
-    typeof window != "undefined" && (window.watchableError = error);
-    typeof global != "undefined" && (global.watchableError = error);
+        f               = Function,
+        fnBodyStart     = 'try {',
+        getterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____); }',
+        setterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____, $$$$); }',
 
-    var prepareCode = function prepareCode(expr) {
-        return expr.replace(REG_REPLACE_EXPR, '$1____.$3');
-    };
+        emptyFunc       = MetaphorJs.emptyFn,
 
-    var getterCache = {};
-    var createGetter = function createGetter(expr) {
-        if (!getterCache[expr]) {
-            return getterCache[expr] = new f(
-                '____',
-                "".concat(fnBodyStart, 'return ', expr.replace(REG_REPLACE_EXPR, '$1____.$3'), fnBodyEnd)
-            );
-        }
-        return getterCache[expr];
-    };
+        prepareCode     = function prepareCode(expr) {
+            return expr.replace(REG_REPLACE_EXPR, '$1____.$3');
+        },
 
-    var setterCache = {};
-    var createSetter = function createSetter(expr) {
-        if (!setterCache[expr]) {
-            var code = expr.replace(REG_REPLACE_EXPR, '$1____.$3');
-            return setterCache[expr] = new f(
-                '____',
-                '$$$$',
-                "".concat(fnBodyStart, code, ' = $$$$', fnBodyEnd)
-            );
-        }
-        return setterCache[expr];
-    };
+        slice           = Array.prototype.slice,
 
-    var funcCache = {};
-    var createFunc = function createFunc(expr) {
-        if (!funcCache[expr]) {
-            return funcCache[expr] = new f(
-                '____',
-                "".concat(fnBodyStart, expr.replace(REG_REPLACE_EXPR, '$1____.$3'), fnBodyEnd)
-            );
-        }
-        return funcCache[expr];
-    };
+        interceptor     = function(thrownError, func, scope, value) {
 
-    var evaluate = function(expr, scope) {
-        return createGetter(expr)(scope);
-    };
+            while (scope && !scope.$isRoot) {
 
+                scope = scope.$parent;
+
+                if (scope) {
+
+                    try {
+                        if (arguments.length == 4) {
+                            return func.call(null, scope, value, emptyFunc, func);
+                        }
+                        else {
+                            return func.call(null, scope, emptyFunc, func);
+                        }
+                    }
+                    catch (newError) {}
+                }
+            }
+
+            return undefined;
+        },
+
+        wrapFunc        = function(func) {
+            return function() {
+                var args = slice.call(arguments),
+                    val;
+
+                args.push(interceptor);
+                args.push(func);
+
+                val = func.apply(null, args);
+
+                if (val == undefined || (!val && typeof val == "number" && isNaN(val))) {
+                    args = slice.call(arguments);
+                    args.unshift(func);
+                    args.unshift(null);
+                    return interceptor.apply(null, args);
+                }
+                else {
+                    return val;
+                }
+            };
+        },
+
+        getterCache     = {},
+        getterCacheCnt  = 0,
+
+        createGetter    = function createGetter(expr) {
+            try {
+                if (!getterCache[expr]) {
+                    getterCacheCnt++;
+                    return getterCache[expr] = wrapFunc(new f(
+                        '____',
+                        '$$interceptor',
+                        '$$itself',
+                        "".concat(fnBodyStart, 'return ', expr.replace(REG_REPLACE_EXPR, '$1____.$3'), getterBodyEnd)
+                    ));
+                }
+                return getterCache[expr];
+            }
+            catch (thrownError){
+                return emptyFunc;
+            }
+        },
+
+        setterCache     = {},
+        setterCacheCnt  = 0,
+
+        createSetter    = function createSetter(expr) {
+            try {
+                if (!setterCache[expr]) {
+                    setterCacheCnt++;
+                    var code = expr.replace(REG_REPLACE_EXPR, '$1____.$3');
+                    return setterCache[expr] = wrapFunc(new f(
+                        '____',
+                        '$$$$',
+                        '$$interceptor',
+                        '$$itself',
+                        "".concat(fnBodyStart, code, ' = $$$$', setterBodyEnd)
+                    ));
+                }
+                return setterCache[expr];
+            }
+            catch (thrownError) {
+                return emptyFunc;
+            }
+        },
+
+        funcCache       = {},
+        funcCacheCnt    = 0,
+
+        createFunc      = function createFunc(expr) {
+            try {
+                if (!funcCache[expr]) {
+                    funcCacheCnt++;
+                    return funcCache[expr] = wrapFunc(new f(
+                        '____',
+                        '$$interceptor',
+                        '$$itself',
+                        "".concat(fnBodyStart, expr.replace(REG_REPLACE_EXPR, '$1____.$3'), getterBodyEnd)
+                    ));
+                }
+                return funcCache[expr];
+            }
+            catch (thrownError) {
+                return emptyFunc;
+            }
+        },
+
+        evaluate    = function(expr, scope) {
+            return createGetter(expr)(scope);
+        },
+
+        resetCache  = function() {
+            getterCacheCnt >= 1000 && (getterCache = {});
+            setterCacheCnt >= 1000 && (setterCache = {});
+            funcCacheCnt >= 1000 && (funcCache = {});
+        };
+
+    setTimeout(resetCache, 10000);
 
     Watchable.create = create;
     Watchable.unsubscribeAndDestroy = unsubscribeAndDestroy;
