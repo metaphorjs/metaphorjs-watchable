@@ -8,7 +8,9 @@
         global.window = global;
     }
 
-    var Observable;
+    var Observable,
+        hasProvider,
+        g;
 
     if (typeof global != "undefined") {
         try {
@@ -20,8 +22,13 @@
             }
         }
     }
-    else if (window.MetaphorJs && MetaphorJs.lib && MetaphorJs.lib.Observable) {
-        Observable = MetaphorJs.lib.Observable;
+
+    if (typeof MetaphorJs != "undefined") {
+        if (!Observable) {
+            Observable  = MetaphorJs.lib.Observable;
+            hasProvider = !!MetaphorJs.lib.Provider;
+            g           = MetaphorJs.g;
+        }
     }
 
 
@@ -54,6 +61,23 @@
         },
         isWindow    = function(obj) {
             return obj && obj.document && obj.location && obj.alert && obj.setInterval;
+        },
+        isStatic    = function(val) {
+
+            if (typeof val != "string") {
+                return true;
+            }
+
+            var first   = val.substr(0, 1),
+                last    = val.length - 1;
+
+            if (first == '"' || first == "'") {
+                if (val.indexOf(first, 1) == last) {
+                    return val.substring(1, last);
+                }
+            }
+
+            return false;
         },
         extend      = function(trg, src) {
             for (var i in src) {
@@ -249,9 +273,7 @@
             };
         })(),
 
-        observable,
-
-        g = window.MetaphorJs ? MetaphorJs.ns.get : null;
+        observable;
 
 
 
@@ -264,6 +286,8 @@
         var self    = this,
             id      = nextHash(),
             type;
+
+        self.origCode = code;
 
         if (isArray(dataObj) && code === null) {
             type    = "array";
@@ -306,21 +330,29 @@
                 code    = normalizeExpr(dataObj, code);
                 type    = dataObj.hasOwnProperty(code) ? "attr" : "expr";
             }
+
+            if (self.staticValue = isStatic(code)) {
+                type    = "static";
+            }
         }
 
+        self.userData   = userData;
         self.code       = code;
-        self.getterFn   = type == "expr" ? createGetter(code) : null;
         self.id         = id;
         self.type       = type;
         self.obj        = dataObj;
-        self.itv        = null;
+
+        if (type == "expr") {
+            self.getterFn   = createGetter(code);
+        }
 
         self.curr       = self._getValue();
-
     };
 
     extend(Watchable.prototype, {
 
+        staticValue: null,
+        origCode: null,
         code: null,
         getterFn: null,
         setterFn: null,
@@ -329,10 +361,10 @@
         obj: null,
         itv: null,
         curr: null,
-        arraySlice: false,
         pipes: null,
         inputPipes: null,
         lastSetValue: null,
+        userData: null,
 
 
         _processInputPipes: function(text, dataObj) {
@@ -380,10 +412,10 @@
                 i, l;
 
             if (g) {
-                fn = g("filter." + name, true);
+                fn      = g("filter." + name, true);
             }
             if (!fn) {
-                fn = window[name] || dataObj[name];
+                fn      = window[name] || dataObj[name];
             }
 
             if (typeof fn == "function") {
@@ -424,7 +456,6 @@
                         }
                         else {
                             pipe = trim(text.substring(index, pIndex)).split(":");
-
                             self._addPipe(pipes, pipe, dataObj);
                         }
                     }
@@ -433,7 +464,7 @@
                 else {
                     if (found) {
                         pipe = trim(text.substr(index)).split(":");
-                        self._addPipe(pipes, pipe, dataObj, self.check);
+                        self._addPipe(pipes, pipe, dataObj, self.onPipeParamChange);
                     }
                     break;
                 }
@@ -514,21 +545,15 @@
                 val;
 
             switch (self.type) {
+                case "static":
+                    val = self.staticValue;
+                    break;
+
                 case "attr":
                     val = self.obj[self.code];
                     break;
                 case "expr":
-                    try {
-                        val = self.getterFn(self.obj);
-                    }
-                    catch (thrownError) {
-                        if (window.MetaphorJs) {
-                            MetaphorJs.error(thrownError);
-                        }
-                        else {
-                            throw e;
-                        }
-                    }
+                    val = self.getterFn(self.obj);
                     if (typeof val == "undefined") {
                         val = "";
                     }
@@ -569,6 +594,7 @@
 
                     args.unshift(dataObj);
                     args.unshift(val);
+
                     val     = pipes[j][0].apply(null, args);
                 }
             }
@@ -577,7 +603,7 @@
         },
 
         subscribe: function(fn, fnScope, options) {
-            return observable.on(this.id, fn, fnScope, options);
+            observable.on(this.id, fn, fnScope, options);
         },
 
         unsubscribe: function(fn, fnScope) {
@@ -628,6 +654,10 @@
             this.setValue(this.lastSetValue);
         },
 
+        onPipeParamChange: function() {
+            this.check();
+        },
+
         check: function() {
 
             var self    = this;
@@ -635,6 +665,7 @@
             switch (self.type) {
                 case "expr":
                 case "attr":
+                case "static":
                     return self._checkCode();
 
                 case "object":
@@ -718,12 +749,21 @@
             }
 
             if (self.obj) {
-                delete self.obj.$$watchers[self.code];
+                delete self.obj.$$watchers[self.origCode];
             }
 
-            self.curr   = null;
-            self.obj    = null;
-            self.pipes  = null;
+            delete self.id;
+            delete self.curr;
+            delete self.obj;
+            delete self.pipes;
+            delete self.inputPipes;
+            delete self.origCode;
+            delete self.code;
+            delete self.getterFn;
+            delete self.setterFn;
+            delete self.lastSetValue;
+            delete self.staticValue;
+            delete self.userData;
 
             observable.destroyEvent(self.id);
 
@@ -936,6 +976,10 @@
         },
 
         evaluate    = function(expr, scope) {
+            var val;
+            if (val = isStatic(expr)) {
+                return val;
+            }
             return createGetter(expr)(scope);
         },
 
@@ -955,6 +999,10 @@
     Watchable.createSetter = createSetter;
     Watchable.createFunc = createFunc;
     Watchable.eval = evaluate;
+
+    window.showGetterCache = function() {
+        return getterCache;
+    }
 
     if (window.MetaphorJs && MetaphorJs.r) {
         MetaphorJs.r("MetaphorJs.lib.Watchable", Watchable);
