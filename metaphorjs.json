@@ -1,0 +1,28 @@
+{
+    "standalone": {
+        "auto": true,
+        "wrap": true,
+        "target": "dist/metaphorjs.watchable.js",
+        "files": [
+            "../metaphorjs/src/MetaphorJs.js",
+            "src/metaphorjs.watchable.js"
+        ]
+    },
+    "module": {
+        "auto": true,
+        "wrap": true,
+        "target": "dist/metaphorjs.watchable.amd.js",
+        "files": [
+            "../metaphorjs/src/amd/MetaphorJs.js",
+            "src/metaphorjs.watchable.js"
+        ],
+        "append": [
+            "src/amd/append.js"
+        ]
+    },
+
+    "compile-standalone": {
+        "target": "dist/metaphorjs.watchable.min.js",
+        "compile": "standalone"
+    }
+}

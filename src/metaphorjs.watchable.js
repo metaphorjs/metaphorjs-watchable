@@ -1,67 +1,24 @@
+//#require ../../metaphorjs/src/func/nsGet.js
+//#require ../../metaphorjs/src/func/nextUid.js
+//#require ../../metaphorjs/src/func/toString.js
+//#require ../../metaphorjs/src/func/array/isArray.js
+//#require ../../metaphorjs/src/func/isObject.js
+//#require ../../metaphorjs/src/func/isDate.js
+//#require ../../metaphorjs/src/func/isFunction.js
+//#require ../../metaphorjs/src/func/isRegExp.js
+//#require ../../metaphorjs/src/func/isWindow.js
+//#require ../../metaphorjs/src/func/trim.js
+//#require ../../metaphorjs/src/func/emptyFn.js
+//#require ../../metaphorjs/src/func/array/slice.js
+//#require ../../metaphorjs/src/vars/Observable.js
 
 
 (function(){
 
     "use strict";
 
-    if (typeof window == "undefined") {
-        global.window = global;
-    }
-
-    var Observable,
-        hasProvider,
-        g;
-
-    if (typeof global != "undefined") {
-        try {
-            Observable = require("metaphorjs-observable");
-        }
-        catch (thrownError) {
-            if (global.Observable) {
-                Observable = global.Observable;
-            }
-        }
-    }
-
-    if (typeof MetaphorJs != "undefined") {
-        if (!Observable) {
-            Observable  = MetaphorJs.lib.Observable;
-            hasProvider = !!MetaphorJs.lib.Provider;
-            g           = MetaphorJs.g;
-        }
-    }
-
-
     var REG_REPLACE_EXPR = /(^|[^a-z0-9_$])(\.)([^0-9])/ig,
-        hashes     = {},
-        randomHash = function() {
-            var N = 10;
-            return new Array(N+1).join((Math.random().toString(36)+'00000000000000000')
-                .slice(2, 18)).slice(0, N);
-        },
-        nextHash    = window.MetaphorJs && MetaphorJs.nextUid ? MetaphorJs.nextUid : function() {
-            var hash = randomHash();
-            return !hashes[hash] ? (hashes[hash] = hash) : nextHash();
-        },
-        toString    = Object.prototype.toString,
-        isArray     = function(obj) {
-            return toString.call(obj) === '[object Array]';
-        },
-        isObject    = function(value) {
-            return value != null && typeof value === 'object';
-        },
-        isDate      = function(value) {
-            return toString.call(value) === '[object Date]';
-        },
-        isFunction  = function(value) {
-            return typeof value === 'function';
-        },
-        isRegExp    = function(value) {
-            return toString.call(value) === '[object RegExp]';
-        },
-        isWindow    = function(obj) {
-            return obj && obj.document && obj.location && obj.alert && obj.setInterval;
-        },
+
         isStatic    = function(val) {
 
             if (typeof val != "string") {
@@ -79,13 +36,7 @@
 
             return false;
         },
-        extend      = function(trg, src) {
-            for (var i in src) {
-                if (src.hasOwnProperty(i)) {
-                    trg[i] = src[i];
-                }
-            }
-        },
+
         copy    = function(source, destination){
             if (isWindow(source)) {
                 throw new Error("Cannot copy window object");
@@ -125,6 +76,7 @@
             }
             return destination;
         },
+
         equals  = function(o1, o2) {
             if (o1 === o2) return true;
             if (o1 === null || o2 === null) return false;
@@ -260,18 +212,7 @@
                 prescription: route.reverse()
             };
         },
-        trim = window.MetaphorJs ? MetaphorJs.trim : (function() {
-            // native trim is way faster: http://jsperf.com/angular-trim-test
-            // but IE doesn't have it... :-(
-            if (!String.prototype.trim) {
-                return function(value) {
-                    return typeof value == "string" ? value.replace(/^\s\s*/, '').replace(/\s\s*$/, '') : value;
-                };
-            }
-            return function(value) {
-                return typeof value == "string" ? value.trim() : value;
-            };
-        })(),
+
 
         observable;
 
@@ -284,7 +225,7 @@
         }
 
         var self    = this,
-            id      = nextHash(),
+            id      = nextUid(),
             type;
 
         self.origCode = code;
@@ -349,7 +290,7 @@
         self.curr       = self._getValue();
     };
 
-    extend(Watchable.prototype, {
+    Watchable.prototype = {
 
         staticValue: null,
         origCode: null,
@@ -411,8 +352,8 @@
                 ws      = [],
                 i, l;
 
-            if (g) {
-                fn      = g("filter." + name, true);
+            if (nsGet) {
+                fn      = nsGet("filter." + name, true);
             }
             if (!fn) {
                 fn      = window[name] || dataObj[name];
@@ -768,7 +709,7 @@
             observable.destroyEvent(self.id);
 
         }
-    });
+    };
 
 
     var create = function(obj, code, fn, fnScope, userData) {
@@ -857,13 +798,10 @@
         getterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____); }',
         setterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____, $$$$); }',
 
-        emptyFunc       = MetaphorJs.emptyFn,
-
         prepareCode     = function prepareCode(expr) {
             return expr.replace(REG_REPLACE_EXPR, '$1____.$3');
         },
 
-        slice           = Array.prototype.slice,
 
         interceptor     = function(thrownError, func, scope, value) {
 
@@ -875,10 +813,10 @@
 
                     try {
                         if (arguments.length == 4) {
-                            return func.call(null, scope, value, emptyFunc, func);
+                            return func.call(null, scope, value, emptyFn, func);
                         }
                         else {
-                            return func.call(null, scope, emptyFunc, func);
+                            return func.call(null, scope, emptyFn, func);
                         }
                     }
                     catch (newError) {}
@@ -927,7 +865,7 @@
                 return getterCache[expr];
             }
             catch (thrownError){
-                return emptyFunc;
+                return emptyFn;
             }
         },
 
@@ -950,7 +888,7 @@
                 return setterCache[expr];
             }
             catch (thrownError) {
-                return emptyFunc;
+                return emptyFn;
             }
         },
 
@@ -971,7 +909,7 @@
                 return funcCache[expr];
             }
             catch (thrownError) {
-                return emptyFunc;
+                return emptyFn;
             }
         },
 
@@ -989,7 +927,6 @@
             funcCacheCnt >= 1000 && (funcCache = {});
         };
 
-    setTimeout(resetCache, 10000);
 
     Watchable.create = create;
     Watchable.unsubscribeAndDestroy = unsubscribeAndDestroy;
@@ -1000,16 +937,10 @@
     Watchable.createFunc = createFunc;
     Watchable.eval = evaluate;
 
-    window.showGetterCache = function() {
-        return getterCache;
-    }
+    Watchable.enableResetCacheInterval = function() {
+        setTimeout(resetCache, 10000);
+    };
 
-    if (window.MetaphorJs && MetaphorJs.r) {
-        MetaphorJs.r("MetaphorJs.lib.Watchable", Watchable);
-    }
-
-    if (typeof global != "undefined") {
-        module.exports = Watchable;
-    }
+    MetaphorJs.lib.Watchable = Watchable;
 
 }());
