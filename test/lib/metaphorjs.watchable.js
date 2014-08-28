@@ -1,15 +1,17 @@
-(function(){
-"use strict";
 
-var MetaphorJs = {
-    lib: {}
-};
+if (typeof MetaphorJs == "undefined") {
+    var MetaphorJs = {};
+}
+
+if (!MetaphorJs.lib) {
+    MetaphorJs.lib = {};
+}
 
 
 
 
 /**
- * @returns {String}
+ * @return {String}
  */
 var nextUid = function(){
     var uid = ['0', '0', '0'];
@@ -48,19 +50,6 @@ var isPlainObject = function(obj) {
     return !!(obj && obj.constructor === Object);
 };
 
-var isBool = function(value) {
-    return typeof value == "boolean";
-};
-var strUndef = "undefined";
-
-
-var isUndefined = function(any) {
-    return typeof any == strUndef;
-};
-
-var isNull = function(value) {
-    return value === null;
-};
 
 
 /**
@@ -82,10 +71,10 @@ var extend = function extend() {
         k,
         value;
 
-    if (isBool(args[args.length - 1])) {
+    if (typeof args[args.length - 1] == "boolean") {
         override    = args.pop();
     }
-    if (isBool(args[args.length - 1])) {
+    if (typeof args[args.length - 1] == "boolean") {
         deep        = override;
         override    = args.pop();
     }
@@ -94,14 +83,14 @@ var extend = function extend() {
         if (src = args.shift()) {
             for (k in src) {
 
-                if (src.hasOwnProperty(k) && !isUndefined((value = src[k]))) {
+                if (src.hasOwnProperty(k) && typeof (value = src[k]) != "undefined") {
 
                     if (deep) {
                         if (dst[k] && isPlainObject(dst[k]) && isPlainObject(value)) {
                             extend(dst[k], value, override, deep);
                         }
                         else {
-                            if (override === true || isUndefined(dst[k]) || isNull(dst[k])) {
+                            if (override === true || typeof dst[k] == "undefined" || dst[k] === null) {
                                 if (isPlainObject(value)) {
                                     dst[k] = {};
                                     extend(dst[k], value, override, true);
@@ -113,7 +102,7 @@ var extend = function extend() {
                         }
                     }
                     else {
-                        if (override === true || isUndefined(dst[k]) || isNull(dst[k])) {
+                        if (override === true || typeof dst[k] == "undefined" || dst[k] === null) {
                             dst[k] = value;
                         }
                     }
@@ -124,7 +113,6 @@ var extend = function extend() {
 
     return dst;
 };
-
 
 /**
  * @param {Function} fn
@@ -144,6 +132,11 @@ var bind = Function.prototype.bind ?
 var isFunction = function(value) {
     return typeof value === 'function';
 };
+
+var isUndefined = function(any) {
+    return typeof any == "undefined";
+};
+
 
 
 
@@ -829,12 +822,6 @@ MetaphorJs.lib.Observable = Observable;
 
 
 var toString = Object.prototype.toString;
-var isObject = function(value) {
-    return value != null && typeof value === 'object';
-};
-var isNumber = function(value) {
-    return typeof value == "number" && !isNaN(value);
-};
 
 
 /**
@@ -842,8 +829,12 @@ var isNumber = function(value) {
  * @returns {boolean}
  */
 var isArray = function(value) {
-    return !!(value && isObject(value) && isNumber(value.length) &&
+    return !!(value && typeof value == 'object' &&
+              typeof value.length == 'number' &&
                 toString.call(value) == '[object Array]' || false);
+};
+var isObject = function(value) {
+    return value != null && typeof value === 'object';
 };
 
 var isDate = function(value) {
@@ -857,33 +848,28 @@ var isRegExp = function(value) {
 var isWindow = function(obj) {
     return obj && obj.document && obj.location && obj.alert && obj.setInterval;
 };
-var isString = function(value) {
-    return typeof value == "string";
-};
-
-
 /**
  * @param {String} value
  */
-var trim = function() {
+var trim = (function() {
     // native trim is way faster: http://jsperf.com/angular-trim-test
     // but IE doesn't have it... :-(
     if (!String.prototype.trim) {
         return function(value) {
-            return isString(value) ? value.replace(/^\s\s*/, '').replace(/\s\s*$/, '') : value;
+            return typeof value == "string" ? value.replace(/^\s\s*/, '').replace(/\s\s*$/, '') : value;
         };
     }
     return function(value) {
-        return isString(value) ? value.trim() : value;
+        return typeof value == "string" ? value.trim() : value;
     };
-}();
+})();
 
 var emptyFn = function(){};
 
 
+var Watchable;
 
-
-var Watchable = function(){
+(function(){
 
     
 
@@ -891,7 +877,7 @@ var Watchable = function(){
 
         isStatic    = function(val) {
 
-            if (!isString(val)) {
+            if (typeof val != "string") {
                 return true;
             }
 
@@ -1088,7 +1074,7 @@ var Watchable = function(){
 
 
 
-    var Watchable   = function(dataObj, code, fn, fnScope, userData, namespace) {
+    Watchable   = function(dataObj, code, fn, fnScope, userData, namespace) {
 
         if (!observable) {
             observable  = new Observable;
@@ -1099,7 +1085,6 @@ var Watchable = function(){
             type;
 
         if (namespace) {
-            self.namespace = namespace;
             self.nsGet = namespace.get;
         }
 
@@ -1110,13 +1095,13 @@ var Watchable = function(){
         }
         else {
 
-            if (!isString(code)) {
+            if (typeof code != "string") {
                 fnScope = fn;
                 fn      = code;
                 code    = null;
                 type    = "object"; // isArray(obj) ? "collection" :
             }
-            if (isString(dataObj)) {
+            if (typeof dataObj == "string") {
                 fnScope = fn;
                 fn      = code;
                 code    = dataObj;
@@ -1167,7 +1152,6 @@ var Watchable = function(){
 
     Watchable.prototype = {
 
-        namespace: null,
         nsGet: null,
         staticValue: null,
         origCode: null,
@@ -1236,10 +1220,10 @@ var Watchable = function(){
                 fn      = window[name] || dataObj[name];
             }
 
-            if (isFunction(fn)) {
+            if (typeof fn == "function") {
 
                 for (i = -1, l = pipe.length; ++i < l;
-                     ws.push(create(dataObj, pipe[i], onParamChange, self, null, self.namespace))) {}
+                     ws.push(create(dataObj, pipe[i], onParamChange, self))) {}
 
                 pipes.push([fn, pipe, ws]);
             }
@@ -1372,7 +1356,7 @@ var Watchable = function(){
                     break;
                 case "expr":
                     val = self.getterFn(self.obj);
-                    if (isUndefined(val)) {
+                    if (typeof val == "undefined") {
                         val = "";
                     }
                     break;
@@ -1582,8 +1566,6 @@ var Watchable = function(){
             delete self.lastSetValue;
             delete self.staticValue;
             delete self.userData;
-            delete self.namespace;
-            delete self.nsGet;
 
             observable.destroyEvent(self.id);
 
@@ -1705,11 +1687,6 @@ var Watchable = function(){
             return undefined;
         },
 
-        isFailed        = function(value) {
-            return isUndefined(value) ||
-                   (!value && typeof value == "number" && isNaN(value));
-        },
-
         wrapFunc        = function(func) {
             return function() {
                 var args = slice.call(arguments),
@@ -1720,7 +1697,7 @@ var Watchable = function(){
 
                 val = func.apply(null, args);
 
-                if (isFailed(val)) {
+                if (val == undefined || (!val && typeof val == "number" && isNaN(val))) {
                     args = slice.call(arguments);
                     args.unshift(func);
                     args.unshift(null);
@@ -1825,11 +1802,7 @@ var Watchable = function(){
         setTimeout(resetCache, 10000);
     };
 
-    return Watchable;
-}();
-
+}());
 
 MetaphorJs.lib.Watchable = Watchable;
 
-var createWatchable = Watchable;
-}());

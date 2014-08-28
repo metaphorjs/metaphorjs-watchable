@@ -1,23 +1,41 @@
 {
+
+    "metaphorjs": {
+        "files": [
+            "../metaphorjs-observable/src/metaphorjs.observable.js",
+            "src/metaphorjs.watchable.js"
+        ]
+    },
+
     "standalone": {
         "auto": true,
         "wrap": true,
         "target": "dist/metaphorjs.watchable.js",
         "files": [
-            "../metaphorjs/src/MetaphorJs.js",
+            "../metaphorjs-observable/src/metaphorjs.observable.js",
             "src/metaphorjs.watchable.js"
         ]
     },
+
     "module": {
         "auto": true,
-        "wrap": true,
         "target": "dist/metaphorjs.watchable.amd.js",
         "files": [
-            "../metaphorjs/src/amd/MetaphorJs.js",
             "src/metaphorjs.watchable.js"
+        ],
+        "prepend": [
+            "src/amd/prepend.js"
         ],
         "append": [
             "src/amd/append.js"
+        ]
+    },
+
+    "test": {
+        "target": "test/lib/metaphorjs.watchable.js",
+        "files": [
+            "../metaphorjs-observable/src/metaphorjs.observable.js",
+            "src/metaphorjs.watchable.js"
         ]
     },
 

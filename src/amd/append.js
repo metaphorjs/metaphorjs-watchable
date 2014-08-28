@@ -1,2 +1,2 @@
 
-module.exports = MetaphorJs.lib.Watchable;
+module.exports = Watchable;

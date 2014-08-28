@@ -1,19 +1,23 @@
-//#require ../../metaphorjs/src/func/nsGet.js
-//#require ../../metaphorjs/src/func/nextUid.js
-//#require ../../metaphorjs/src/func/toString.js
-//#require ../../metaphorjs/src/func/array/isArray.js
-//#require ../../metaphorjs/src/func/isObject.js
-//#require ../../metaphorjs/src/func/isDate.js
-//#require ../../metaphorjs/src/func/isFunction.js
-//#require ../../metaphorjs/src/func/isRegExp.js
-//#require ../../metaphorjs/src/func/isWindow.js
-//#require ../../metaphorjs/src/func/trim.js
-//#require ../../metaphorjs/src/func/emptyFn.js
-//#require ../../metaphorjs/src/func/array/slice.js
-//#require ../../metaphorjs/src/vars/Observable.js
+
+var MetaphorJs  = require("../../metaphorjs/src/MetaphorJs.js"),
+    nextUid     = require("../../metaphorjs/src/func/nextUid.js"),
+    toString    = require("../../metaphorjs/src/func/toString.js"),
+    isArray     = require("../../metaphorjs/src/func/isArray.js"),
+    isObject    = require("../../metaphorjs/src/func/isObject.js"),
+    isDate      = require("../../metaphorjs/src/func/isDate.js"),
+    isFunction  = require("../../metaphorjs/src/func/isFunction.js"),
+    isRegExp    = require("../../metaphorjs/src/func/isRegExp.js"),
+    isWindow    = require("../../metaphorjs/src/func/isWindow.js"),
+    trim        = require("../../metaphorjs/src/func/trim.js"),
+    emptyFn     = require("../../metaphorjs/src/func/emptyFn.js"),
+    slice       = require("../../metaphorjs/src/func/array/slice.js"),
+    isString    = require("../../metaphorjs/src/func/isString.js"),
+    isUndefined = require("../../metaphorjs/src/func/isUndefined.js"),
+    isNumber    = require("../../metaphorjs/src/func/isNumber.js");
 
 
-(function(){
+
+var Watchable = function(){
 
     "use strict";
 
@@ -21,7 +25,7 @@
 
         isStatic    = function(val) {
 
-            if (typeof val != "string") {
+            if (!isString(val)) {
                 return true;
             }
 
@@ -218,7 +222,7 @@
 
 
 
-    var Watchable   = function(dataObj, code, fn, fnScope, userData) {
+    var Watchable   = function(dataObj, code, fn, fnScope, userData, namespace) {
 
         if (!observable) {
             observable  = new Observable;
@@ -228,6 +232,11 @@
             id      = nextUid(),
             type;
 
+        if (namespace) {
+            self.namespace = namespace;
+            self.nsGet = namespace.get;
+        }
+
         self.origCode = code;
 
         if (isArray(dataObj) && code === null) {
@@ -235,13 +244,13 @@
         }
         else {
 
-            if (typeof code != "string") {
+            if (!isString(code)) {
                 fnScope = fn;
                 fn      = code;
                 code    = null;
                 type    = "object"; // isArray(obj) ? "collection" :
             }
-            if (typeof dataObj == "string") {
+            if (isString(dataObj)) {
                 fnScope = fn;
                 fn      = code;
                 code    = dataObj;
@@ -292,6 +301,8 @@
 
     Watchable.prototype = {
 
+        namespace: null,
+        nsGet: null,
         staticValue: null,
         origCode: null,
         code: null,
@@ -352,17 +363,17 @@
                 ws      = [],
                 i, l;
 
-            if (nsGet) {
-                fn      = nsGet("filter." + name, true);
+            if (self.nsGet) {
+                fn      = self.nsGet("filter." + name, true);
             }
             if (!fn) {
                 fn      = window[name] || dataObj[name];
             }
 
-            if (typeof fn == "function") {
+            if (isFunction(fn)) {
 
                 for (i = -1, l = pipe.length; ++i < l;
-                     ws.push(create(dataObj, pipe[i], onParamChange, self))) {}
+                     ws.push(create(dataObj, pipe[i], onParamChange, self, null, self.namespace))) {}
 
                 pipes.push([fn, pipe, ws]);
             }
@@ -495,7 +506,7 @@
                     break;
                 case "expr":
                     val = self.getterFn(self.obj);
-                    if (typeof val == "undefined") {
+                    if (isUndefined(val)) {
                         val = "";
                     }
                     break;
@@ -705,6 +716,8 @@
             delete self.lastSetValue;
             delete self.staticValue;
             delete self.userData;
+            delete self.namespace;
+            delete self.nsGet;
 
             observable.destroyEvent(self.id);
 
@@ -712,7 +725,7 @@
     };
 
 
-    var create = function(obj, code, fn, fnScope, userData) {
+    var create = function(obj, code, fn, fnScope, userData, namespace) {
 
             code = normalizeExpr(obj, trim(code));
 
@@ -756,13 +769,13 @@
                     obj.$$watchers[code].subscribe(fn, fnScope, {append: [userData], allowDupes: true});
                 }
                 else {
-                    obj.$$watchers[code] = new Watchable(obj, code, fn, fnScope, userData);
+                    obj.$$watchers[code] = new Watchable(obj, code, fn, fnScope, userData, namespace);
                 }
 
                 return obj.$$watchers[code];
             }
             else {
-                return new Watchable(obj, code, fn, fnScope, userData);
+                return new Watchable(obj, code, fn, fnScope, userData, namespace);
             }
         },
 
@@ -826,6 +839,11 @@
             return undefined;
         },
 
+        isFailed        = function(value) {
+            return isUndefined(value) ||
+                   (!value && typeof value == "number" && isNaN(value));
+        },
+
         wrapFunc        = function(func) {
             return function() {
                 var args = slice.call(arguments),
@@ -836,7 +854,7 @@
 
                 val = func.apply(null, args);
 
-                if (val == undefined || (!val && typeof val == "number" && isNaN(val))) {
+                if (isFailed(val)) {
                     args = slice.call(arguments);
                     args.unshift(func);
                     args.unshift(null);
@@ -941,6 +959,10 @@
         setTimeout(resetCache, 10000);
     };
 
-    MetaphorJs.lib.Watchable = Watchable;
+    return Watchable;
+}();
 
-}());
+
+MetaphorJs.lib.Watchable = Watchable;
+
+module.exports = Watchable;
