@@ -1,10 +1,4 @@
-
-var Observable = require("metaphorjs-observable");
-var MetaphorJs = {
-    lib: {}
-};
-
-
+define("metaphorjs-watchable", ['metaphorjs-observable'], function(Observable) {
 
 
 /**
@@ -104,7 +98,7 @@ var isUndefined = function(any) {
 
 
 
-var Watchable = function(){
+return function(){
 
     
 
@@ -1050,7 +1044,5 @@ var Watchable = function(){
 }();
 
 
-MetaphorJs.lib.Watchable = Watchable;
 
-var createWatchable = Watchable;
-module.exports = Watchable;
+});

@@ -1,46 +1,53 @@
 {
 
-    "metaphorjs": {
-        "files": [
-            "../metaphorjs-observable/src/metaphorjs.observable.js",
-            "src/metaphorjs.watchable.js"
-        ]
-    },
-
     "standalone": {
-        "auto": true,
         "wrap": true,
+        "global": true,
         "target": "dist/metaphorjs.watchable.js",
         "files": [
-            "../metaphorjs-observable/src/metaphorjs.observable.js",
-            "src/metaphorjs.watchable.js"
+            ["src/metaphorjs.watchable.js", {"as": "Watchable"}]
+        ],
+        "expose": [
+            ["MetaphorJs.lib", "Watchable"]
         ]
     },
 
-    "module": {
-        "auto": true,
+    "npm": {
+        "target": "dist/metaphorjs.watchable.npm.js",
+        "files": [
+            ["src/metaphorjs.watchable.js", {"keepExports": true}]
+        ],
+        "omit": [
+            "../metaphorjs-observable/src/metaphorjs.observable.js"
+        ],
+        "require": {
+            "metaphorjs-observable": "Observable"
+        }
+    },
+
+    "amd": {
         "target": "dist/metaphorjs.watchable.amd.js",
         "files": [
-            "src/metaphorjs.watchable.js"
+            ["src/metaphorjs.watchable.js", {"returnExports": true}]
         ],
-        "prepend": [
-            "src/amd/prepend.js"
+        "omit": [
+            "../metaphorjs-observable/src/metaphorjs.observable.js"
         ],
-        "append": [
-            "src/amd/append.js"
-        ]
-    },
-
-    "test": {
-        "target": "test/lib/metaphorjs.watchable.js",
-        "files": [
-            "../metaphorjs-observable/src/metaphorjs.observable.js",
-            "src/metaphorjs.watchable.js"
-        ]
+        "define": {
+            "name": "metaphorjs-watchable",
+            "deps": {
+                "metaphorjs-observable": "Observable"
+            }
+        }
     },
 
     "compile-standalone": {
         "target": "dist/metaphorjs.watchable.min.js",
         "compile": "standalone"
+    },
+
+    "compile-amd": {
+        "target": "dist/metaphorjs.watchable.amd.min.js",
+        "compile": "amd"
     }
 }

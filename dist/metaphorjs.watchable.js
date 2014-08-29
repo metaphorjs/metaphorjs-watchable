@@ -1,12 +1,6 @@
 (function(){
 "use strict";
 
-var MetaphorJs = {
-    lib: {}
-};
-
-
-
 
 /**
  * @returns {String}
@@ -38,93 +32,68 @@ var nextUid = function(){
     };
 }();
 
+var toString = Object.prototype.toString;
+var isObject = function(value) {
+    return value != null && typeof value === 'object';
+};
+var isNumber = function(value) {
+    return typeof value == "number" && !isNaN(value);
+};
 
-var slice = Array.prototype.slice;
+
 /**
- * @param {*} obj
+ * @param {*} value
  * @returns {boolean}
  */
-var isPlainObject = function(obj) {
-    return !!(obj && obj.constructor === Object);
+var isArray = function(value) {
+    return !!(value && isObject(value) && isNumber(value.length) &&
+                toString.call(value) == '[object Array]' || false);
 };
 
-var isBool = function(value) {
-    return typeof value == "boolean";
+var isDate = function(value) {
+    return toString.call(value) === '[object Date]';
 };
+var isFunction = function(value) {
+    return typeof value === 'function';
+};
+
+
+var isRegExp = function(value) {
+    return toString.call(value) === '[object RegExp]';
+};
+var isWindow = function(obj) {
+    return obj && obj.document && obj.location && obj.alert && obj.setInterval;
+};
+var isString = function(value) {
+    return typeof value == "string";
+};
+
+
+/**
+ * @param {String} value
+ */
+var trim = function() {
+    // native trim is way faster: http://jsperf.com/angular-trim-test
+    // but IE doesn't have it... :-(
+    if (!String.prototype.trim) {
+        return function(value) {
+            return isString(value) ? value.replace(/^\s\s*/, '').replace(/\s\s*$/, '') : value;
+        };
+    }
+    return function(value) {
+        return isString(value) ? value.trim() : value;
+    };
+}();
+
+var emptyFn = function(){};
+
+var slice = Array.prototype.slice;
 var strUndef = "undefined";
 
 
 var isUndefined = function(any) {
     return typeof any == strUndef;
 };
-
-var isNull = function(value) {
-    return value === null;
-};
-
-
-/**
- * @param {Object} dst
- * @param {Object} src
- * @param {Object} src2 ... srcN
- * @param {boolean} override = false
- * @param {boolean} deep = false
- * @returns {*}
- */
-var extend = function extend() {
-
-
-    var override    = false,
-        deep        = false,
-        args        = slice.call(arguments),
-        dst         = args.shift(),
-        src,
-        k,
-        value;
-
-    if (isBool(args[args.length - 1])) {
-        override    = args.pop();
-    }
-    if (isBool(args[args.length - 1])) {
-        deep        = override;
-        override    = args.pop();
-    }
-
-    while (args.length) {
-        if (src = args.shift()) {
-            for (k in src) {
-
-                if (src.hasOwnProperty(k) && !isUndefined((value = src[k]))) {
-
-                    if (deep) {
-                        if (dst[k] && isPlainObject(dst[k]) && isPlainObject(value)) {
-                            extend(dst[k], value, override, deep);
-                        }
-                        else {
-                            if (override === true || isUndefined(dst[k]) || isNull(dst[k])) {
-                                if (isPlainObject(value)) {
-                                    dst[k] = {};
-                                    extend(dst[k], value, override, true);
-                                }
-                                else {
-                                    dst[k] = value;
-                                }
-                            }
-                        }
-                    }
-                    else {
-                        if (override === true || isUndefined(dst[k]) || isNull(dst[k])) {
-                            dst[k] = value;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return dst;
-};
-
 
 /**
  * @param {Function} fn
@@ -141,9 +110,6 @@ var bind = Function.prototype.bind ?
               };
 
 
-var isFunction = function(value) {
-    return typeof value === 'function';
-};
 
 
 
@@ -820,70 +786,14 @@ Event.prototype = {
     }
 };
 
-(function(){
-    var globalObservable    = new Observable;
-    extend(MetaphorJs, globalObservable.getApi(), true, false);
-}());
 
-MetaphorJs.lib.Observable = Observable;
-
-
-var toString = Object.prototype.toString;
-var isObject = function(value) {
-    return value != null && typeof value === 'object';
-};
-var isNumber = function(value) {
-    return typeof value == "number" && !isNaN(value);
-};
-
-
-/**
- * @param {*} value
- * @returns {boolean}
- */
-var isArray = function(value) {
-    return !!(value && isObject(value) && isNumber(value.length) &&
-                toString.call(value) == '[object Array]' || false);
-};
-
-var isDate = function(value) {
-    return toString.call(value) === '[object Date]';
-};
-
-
-var isRegExp = function(value) {
-    return toString.call(value) === '[object RegExp]';
-};
-var isWindow = function(obj) {
-    return obj && obj.document && obj.location && obj.alert && obj.setInterval;
-};
-var isString = function(value) {
-    return typeof value == "string";
-};
-
-
-/**
- * @param {String} value
- */
-var trim = function() {
-    // native trim is way faster: http://jsperf.com/angular-trim-test
-    // but IE doesn't have it... :-(
-    if (!String.prototype.trim) {
-        return function(value) {
-            return isString(value) ? value.replace(/^\s\s*/, '').replace(/\s\s*$/, '') : value;
-        };
-    }
-    return function(value) {
-        return isString(value) ? value.trim() : value;
-    };
-}();
-
-var emptyFn = function(){};
+var Watchable, createWatchable;
 
 
 
 
-var Watchable = function(){
+
+Watchable = createWatchable = function(){
 
     
 
@@ -1829,7 +1739,9 @@ var Watchable = function(){
 }();
 
 
-MetaphorJs.lib.Watchable = Watchable;
 
-var createWatchable = Watchable;
+MetaphorJs.lib['Watchable'] = Watchable;
+
+typeof global != "undefined" ? (global['MetaphorJs'] = MetaphorJs) : (window['MetaphorJs'] = MetaphorJs);
+
 }());

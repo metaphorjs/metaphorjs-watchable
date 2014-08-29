@@ -1,6 +1,5 @@
 
-var MetaphorJs  = require("../../metaphorjs/src/MetaphorJs.js"),
-    nextUid     = require("../../metaphorjs/src/func/nextUid.js"),
+var nextUid     = require("../../metaphorjs/src/func/nextUid.js"),
     toString    = require("../../metaphorjs/src/func/toString.js"),
     isArray     = require("../../metaphorjs/src/func/isArray.js"),
     isObject    = require("../../metaphorjs/src/func/isObject.js"),
@@ -13,11 +12,12 @@ var MetaphorJs  = require("../../metaphorjs/src/MetaphorJs.js"),
     slice       = require("../../metaphorjs/src/func/array/slice.js"),
     isString    = require("../../metaphorjs/src/func/isString.js"),
     isUndefined = require("../../metaphorjs/src/func/isUndefined.js"),
-    isNumber    = require("../../metaphorjs/src/func/isNumber.js");
+    isNumber    = require("../../metaphorjs/src/func/isNumber.js"),
+    Observable  = require("../../metaphorjs-observable/src/metaphorjs.observable.js");
 
 
 
-var Watchable = function(){
+module.exports = function(){
 
     "use strict";
 
@@ -963,6 +963,3 @@ var Watchable = function(){
 }();
 
 
-MetaphorJs.lib.Watchable = Watchable;
-
-module.exports = Watchable;
