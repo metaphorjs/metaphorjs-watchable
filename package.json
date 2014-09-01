@@ -1,22 +1,22 @@
 {
-  "name": "metaphorjs-watchable",
-  "version": "1.0.1",
-  "description": "",
-  "main": "dist/metaphorjs.watchable.npm.js",
-  "scripts": {
-    "test": "mocha"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/kuindji/metaphorjs-watchable.git"
-  },
-  "author": "johann kuindji",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/kuindji/metaphorjs-watchable/issues"
-  },
-  "homepage": "https://github.com/kuindji/metaphorjs-watchable",
-  "dependencies": {
-    "metaphorjs-observable": "*"
-  }
+    "name": "metaphorjs-watchable",
+    "version": "1.0.2",
+    "description": "",
+    "main": "dist/metaphorjs.watchable.npm.js",
+    "scripts": {
+        "test": "mocha"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/kuindji/metaphorjs-watchable.git"
+    },
+    "author": "johann kuindji",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/kuindji/metaphorjs-watchable/issues"
+    },
+    "homepage": "https://github.com/kuindji/metaphorjs-watchable",
+    "dependencies": {
+        "metaphorjs-observable": "*"
+    }
 }

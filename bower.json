@@ -1,26 +1,26 @@
 {
-  "name": "metaphorjs-watchable",
-  "version": "0.1.0",
-  "authors": [
-    "kuindji <kuindji@gmail.com>"
-  ],
-  "description": "MetaphorJs watchable - watch for changes in objects",
-  "main": "dist/metaphorjs.watchable.amd.min.js",
-  "moduleType": [
-    "amd"
-  ],
-  "keywords": [
-    "watcher"
-  ],
-  "license": "MIT",
-  "homepage": "https://github.com/kuindji/metaphorjs-watchable",
-  "ignore": [
-    "node_modules",
-    "bower_components",
-    "test",
-    "tests"
-  ],
-  "dependencies": {
+    "name": "metaphorjs-watchable",
+    "version": "1.0.2",
+    "authors": [
+        "kuindji <kuindji@gmail.com>"
+    ],
+    "description": "MetaphorJs watchable - watch for changes in objects",
+    "main": "dist/metaphorjs.watchable.amd.min.js",
+    "moduleType": [
+        "amd"
+    ],
+    "keywords": [
+        "watcher"
+    ],
+    "license": "MIT",
+    "homepage": "https://github.com/kuindji/metaphorjs-watchable",
+    "ignore": [
+        "node_modules",
+        "bower_components",
+        "test",
+        "tests"
+    ],
+    "dependencies": {
         "metaphorjs-observable": "*"
-  }
+    }
 }

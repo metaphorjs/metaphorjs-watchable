@@ -450,7 +450,7 @@ module.exports = function(){
                 return false;
             }
 
-            if (val !== prev) {
+            if (!equals(prev, val)) {
                 self.curr = val;
                 observable.trigger(self.id, val, prev);
                 changed = true;

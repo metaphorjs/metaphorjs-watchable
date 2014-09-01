@@ -787,13 +787,12 @@ Event.prototype = {
 };
 
 
-var Watchable, createWatchable;
 
 
 
 
 
-Watchable = createWatchable = function(){
+var Watchable = function(){
 
     
 
@@ -1226,7 +1225,7 @@ Watchable = createWatchable = function(){
                 return false;
             }
 
-            if (val !== prev) {
+            if (!equals(prev, val)) {
                 self.curr = val;
                 observable.trigger(self.id, val, prev);
                 changed = true;
