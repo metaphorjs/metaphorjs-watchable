@@ -33,12 +33,63 @@ var nextUid = function(){
 }();
 
 var toString = Object.prototype.toString;
-var isObject = function(value) {
-    return value != null && typeof value === 'object';
-};
-var isNumber = function(value) {
-    return typeof value == "number" && !isNaN(value);
-};
+var undf = undefined;
+
+
+
+var varType = function(){
+
+    var types = {
+        '[object String]': 0,
+        '[object Number]': 1,
+        '[object Boolean]': 2,
+        '[object Object]': 3,
+        '[object Function]': 4,
+        '[object Array]': 5,
+        '[object RegExp]': 9,
+        '[object Date]': 10
+    };
+
+
+    /**
+        'string': 0,
+        'number': 1,
+        'boolean': 2,
+        'object': 3,
+        'function': 4,
+        'array': 5,
+        'null': 6,
+        'undefined': 7,
+        'NaN': 8,
+        'regexp': 9,
+        'date': 10
+    */
+
+    return function(val) {
+
+        if (!val) {
+            if (val === null) {
+                return 6;
+            }
+            if (val === undf) {
+                return 7;
+            }
+        }
+
+        var num = types[toString.call(val)];
+
+        if (num === undf) {
+            return -1;
+        }
+
+        if (num == 1 && isNaN(val)) {
+            num = 8;
+        }
+
+        return num;
+    };
+
+}();
 
 
 /**
@@ -46,26 +97,15 @@ var isNumber = function(value) {
  * @returns {boolean}
  */
 var isArray = function(value) {
-    return !!(value && isObject(value) && isNumber(value.length) &&
-                toString.call(value) == '[object Array]' || false);
-};
-
-var isDate = function(value) {
-    return toString.call(value) === '[object Date]';
+    return varType(value) === 5;
 };
 var isFunction = function(value) {
-    return typeof value === 'function';
+    return typeof value == 'function';
 };
 
 
-var isRegExp = function(value) {
-    return toString.call(value) === '[object RegExp]';
-};
-var isWindow = function(obj) {
-    return obj && obj.document && obj.location && obj.alert && obj.setInterval;
-};
 var isString = function(value) {
-    return typeof value == "string";
+    return varType(value) === 0;
 };
 
 
@@ -88,13 +128,156 @@ var trim = function() {
 var emptyFn = function(){};
 
 var slice = Array.prototype.slice;
+
+
+var isDate = function(value) {
+    return varType(value) === 10;
+};
+
+
+var isRegExp = function(value) {
+    return varType(value) === 9;
+};
+var isWindow = function(obj) {
+    return obj && obj.document && obj.location && obj.alert && obj.setInterval;
+};
+
+
+var equals = function(){
+
+    var equals = function(o1, o2) {
+        if (o1 === o2) return true;
+        if (o1 === null || o2 === null) return false;
+        if (o1 !== o1 && o2 !== o2) return true; // NaN === NaN
+        var t1 = typeof o1, t2 = typeof o2, length, key, keySet;
+        if (t1 == t2) {
+            if (t1 == 'object') {
+                if (isArray(o1)) {
+                    if (!isArray(o2)) return false;
+                    if ((length = o1.length) == o2.length) {
+                        for(key=0; key<length; key++) {
+                            if (!equals(o1[key], o2[key])) return false;
+                        }
+                        return true;
+                    }
+                } else if (isDate(o1)) {
+                    return isDate(o2) && o1.getTime() == o2.getTime();
+                } else if (isRegExp(o1) && isRegExp(o2)) {
+                    return o1.toString() == o2.toString();
+                } else {
+                    if (isWindow(o1) || isWindow(o2) || isArray(o2)) return false;
+                    keySet = {};
+                    for(key in o1) {
+                        if (key.charAt(0) === '$' && typeof o1[key] == "object") {
+                            continue;
+                        }
+                        if (isFunction(o1[key])) {
+                            continue;
+                        }
+                        if (!equals(o1[key], o2[key])) {
+                            return false;
+                        }
+                        keySet[key] = true;
+                    }
+                    for(key in o2) {
+                        if (!keySet.hasOwnProperty(key) &&
+                            key.charAt(0) !== '$' &&
+                            o2[key] !== undf &&
+                            !isFunction(o2[key])) return false;
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    return equals;
+}();
+
+
+var isObject = function(value) {
+    return value !== null && typeof value == "object" && varType(value) > 2;
+};
+
+
+var copy = function(){
+
+    var copy = function(source, destination){
+        if (isWindow(source)) {
+            throw new Error("Cannot copy window object");
+        }
+
+        if (!destination) {
+            destination = source;
+            if (source) {
+                if (isArray(source)) {
+                    destination = copy(source, []);
+                } else if (isDate(source)) {
+                    destination = new Date(source.getTime());
+                } else if (isRegExp(source)) {
+                    destination = new RegExp(source.source);
+                } else if (isObject(source)) {
+                    destination = copy(source, {});
+                }
+            }
+        } else {
+            if (source === destination) {
+                throw new Error("Objects are identical");
+            }
+            if (isArray(source)) {
+                destination.length = 0;
+                for ( var i = 0; i < source.length; i++) {
+                    destination.push(copy(source[i]));
+                }
+            } else {
+                var key;
+                for (key in destination) {
+                    delete destination[key];
+                }
+                for (key in source) {
+                    destination[key] = copy(source[key]);
+                }
+            }
+        }
+        return destination;
+    };
+
+    return copy;
+}();/**
+ * @param {Function} fn
+ * @param {Object} context
+ * @param {[]} args
+ */
+var async = function(fn, context, args) {
+    setTimeout(function(){
+        fn.apply(context, args || []);
+    }, 0);
+};
 var strUndef = "undefined";
 
 
-var isUndefined = function(any) {
-    return typeof any == strUndef;
+var error = function(e) {
+
+    var stack = e.stack || (new Error).stack;
+
+    if (typeof console != strUndef && console.log) {
+        async(function(){
+            console.log(e);
+            if (stack) {
+                console.log(stack);
+            }
+        });
+    }
+    else {
+        throw e;
+    }
 };
 
+
+var isPrimitive = function(value) {
+    return varType(value) < 3;
+};
 /**
  * @param {Function} fn
  * @param {*} context
@@ -488,7 +671,7 @@ var Event = function(name, returnResult) {
     self.uni            = '$$' + name + '_' + self.hash;
     self.suspended      = false;
     self.lid            = 0;
-    self.returnResult   = isUndefined(returnResult) ? null : returnResult; // first|last|all
+    self.returnResult   = returnResult === undf ? null : returnResult; // first|last|all
 };
 
 
@@ -790,8 +973,6 @@ Event.prototype = {
 
 
 
-
-
 var Watchable = function(){
 
     
@@ -816,92 +997,7 @@ var Watchable = function(){
             return false;
         },
 
-        copy    = function(source, destination){
-            if (isWindow(source)) {
-                throw new Error("Cannot copy window object");
-            }
 
-            if (!destination) {
-                destination = source;
-                if (source) {
-                    if (isArray(source)) {
-                        destination = copy(source, []);
-                    } else if (isDate(source)) {
-                        destination = new Date(source.getTime());
-                    } else if (isRegExp(source)) {
-                        destination = new RegExp(source.source);
-                    } else if (isObject(source)) {
-                        destination = copy(source, {});
-                    }
-                }
-            } else {
-                if (source === destination) {
-                    throw new Error("Objects are identical");
-                }
-                if (isArray(source)) {
-                    destination.length = 0;
-                    for ( var i = 0; i < source.length; i++) {
-                        destination.push(copy(source[i]));
-                    }
-                } else {
-                    var key;
-                    for (key in destination) {
-                        delete destination[key];
-                    }
-                    for (key in source) {
-                        destination[key] = copy(source[key]);
-                    }
-                }
-            }
-            return destination;
-        },
-
-        equals  = function(o1, o2) {
-            if (o1 === o2) return true;
-            if (o1 === null || o2 === null) return false;
-            if (o1 !== o1 && o2 !== o2) return true; // NaN === NaN
-            var t1 = typeof o1, t2 = typeof o2, length, key, keySet;
-            if (t1 == t2) {
-                if (t1 == 'object') {
-                    if (isArray(o1)) {
-                        if (!isArray(o2)) return false;
-                        if ((length = o1.length) == o2.length) {
-                            for(key=0; key<length; key++) {
-                                if (!equals(o1[key], o2[key])) return false;
-                            }
-                            return true;
-                        }
-                    } else if (isDate(o1)) {
-                        return isDate(o2) && o1.getTime() == o2.getTime();
-                    } else if (isRegExp(o1) && isRegExp(o2)) {
-                        return o1.toString() == o2.toString();
-                    } else {
-                        if (isWindow(o1) || isWindow(o2) || isArray(o2)) return false;
-                        keySet = {};
-                        for(key in o1) {
-                            if (key.charAt(0) === '$' && typeof o1[key] == "object") {
-                                continue;
-                            }
-                            if (isFunction(o1[key])) {
-                                continue;
-                            }
-                            if (!equals(o1[key], o2[key])) {
-                                return false;
-                            }
-                            keySet[key] = true;
-                        }
-                        for(key in o2) {
-                            if (!keySet.hasOwnProperty(key) &&
-                                key.charAt(0) !== '$' &&
-                                o2[key] !== undefined &&
-                                !isFunction(o2[key])) return false;
-                        }
-                        return true;
-                    }
-                }
-            }
-            return false;
-        },
         levenshteinArray = function(S1, S2) {
 
             var m = S1.length,
@@ -992,6 +1088,45 @@ var Watchable = function(){
             };
         },
 
+        prescription2moves = function(a1, a2, prs, getKey) {
+
+            var newPrs = [],
+                i, l, k, action,
+                map1 = {},
+                prsi,
+                a2i,
+                index;
+
+            for (i = 0, l = a1.length; i < l; i++) {
+                map1[getKey(a1[i])] = i;
+            }
+
+            a2i = 0;
+            var used = {};
+
+            for (prsi = 0, l = prs.length; prsi < l; prsi++) {
+
+                action = prs[prsi];
+
+                if (action == 'D') {
+                    continue;
+                }
+
+                k = getKey(a2[a2i]);
+
+                if (k !== undf && used[k] !== true && (index = map1[k]) !== undf) {
+                    newPrs.push(index);
+                    used[k] = true;
+                }
+                else {
+                    newPrs.push(action);
+                }
+                a2i++;
+            }
+
+            return newPrs;
+        },
+
 
         observable;
 
@@ -1072,6 +1207,7 @@ var Watchable = function(){
         }
 
         self.curr       = self._getValue();
+
     };
 
     Watchable.prototype = {
@@ -1088,10 +1224,28 @@ var Watchable = function(){
         obj: null,
         itv: null,
         curr: null,
+        prev: null,
+        unfiltered: null,
         pipes: null,
         inputPipes: null,
         lastSetValue: null,
         userData: null,
+
+
+        _indexArrayItems: function(a) {
+
+            var key = '$$' + this.id,
+                i, l, item;
+
+            if (a) {
+                for (i = 0, l = a.length; i < l; i++) {
+                    item = a[i];
+                    if (item && !isPrimitive(item) && !item[key]) {
+                        item[key] = nextUid();
+                    }
+                }
+            }
+        },
 
 
         _processInputPipes: function(text, dataObj) {
@@ -1218,7 +1372,9 @@ var Watchable = function(){
 
                 if (lev.changes) {
                     self.curr = val.slice();
+                    self.prev = prev;
                     observable.trigger(self.id, lev, val, prev);
+
                     return true;
                 }
 
@@ -1227,6 +1383,7 @@ var Watchable = function(){
 
             if (!equals(prev, val)) {
                 self.curr = val;
+                self.prev = prev;
                 observable.trigger(self.id, val, prev);
                 changed = true;
             }
@@ -1242,6 +1399,7 @@ var Watchable = function(){
 
             if (!equals(curr, obj)) {
                 self.curr = copy(obj);
+                self.prev = curr;
                 observable.trigger(self.id, obj, curr);
                 return true;
             }
@@ -1258,6 +1416,7 @@ var Watchable = function(){
 
             if (lev.changes) {
                 self.curr = obj.slice();
+                self.prev = curr;
                 observable.trigger(self.id, lev, obj, curr);
                 return true;
             }
@@ -1281,7 +1440,7 @@ var Watchable = function(){
                     break;
                 case "expr":
                     val = self.getterFn(self.obj);
-                    if (isUndefined(val)) {
+                    if (val === undf) {
                         val = "";
                     }
                     break;
@@ -1294,8 +1453,13 @@ var Watchable = function(){
             }
 
             if (isArray(val)) {
+                if (!self.inputPipes) {
+                    self._indexArrayItems(val);
+                }
                 val = val.slice();
             }
+
+            self.unfiltered = val;
 
             val = self._runThroughPipes(val, self.pipes);
 
@@ -1347,6 +1511,24 @@ var Watchable = function(){
 
         getValue: function() {
             return this._getValue();
+        },
+
+        getUnfilteredValue: function() {
+            return this.unfiltered || this.curr;
+        },
+
+        getPrevValue: function() {
+            var self = this;
+            if (self.prev === null) {
+                return self._getValue();
+            }
+            else {
+                return self.prev;
+            }
+        },
+
+        getMovePrescription: function(lvshtnPrescription, trackByFn) {
+            return prescription2moves(this.getPrevValue(), this.curr, lvshtnPrescription, trackByFn);
         },
 
         setValue: function(val) {
@@ -1435,7 +1617,9 @@ var Watchable = function(){
             var self    = this,
                 id      = self.id;
 
-            observable.un(id, fn, fnScope);
+            if (fn) {
+                observable.un(id, fn, fnScope);
+            }
 
             if (!observable.hasListener(id)) {
                 self.destroy();
@@ -1481,6 +1665,8 @@ var Watchable = function(){
 
             delete self.id;
             delete self.curr;
+            delete self.prev;
+            delete self.unfiltered;
             delete self.obj;
             delete self.pipes;
             delete self.inputPipes;
@@ -1611,15 +1797,18 @@ var Watchable = function(){
                 }
             }
 
-            return undefined;
+            if (thrownError !== null) {
+                error(thrownError);
+            }
+
+            return undf;
         },
 
         isFailed        = function(value) {
-            return isUndefined(value) ||
-                   (!value && typeof value == "number" && isNaN(value));
+            return value === undf || (!value && typeof value == "number" && isNaN(value));
         },
 
-        wrapFunc        = function(func) {
+        wrapFunc        = function(func, returnsValue) {
             return function() {
                 var args = slice.call(arguments),
                     val;
@@ -1629,7 +1818,7 @@ var Watchable = function(){
 
                 val = func.apply(null, args);
 
-                if (isFailed(val)) {
+                if (returnsValue && isFailed(val)) {
                     args = slice.call(arguments);
                     args.unshift(func);
                     args.unshift(null);
@@ -1653,7 +1842,7 @@ var Watchable = function(){
                         '$$interceptor',
                         '$$itself',
                         "".concat(fnBodyStart, 'return ', expr.replace(REG_REPLACE_EXPR, '$1____.$3'), getterBodyEnd)
-                    ));
+                    ), true);
                 }
                 return getterCache[expr];
             }
