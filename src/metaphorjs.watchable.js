@@ -11,6 +11,7 @@ var nextUid     = require("../../metaphorjs/src/func/nextUid.js"),
     copy        = require("../../metaphorjs/src/func/copy.js"),
     error       = require("../../metaphorjs/src/func/error.js"),
     isPrimitive = require("../../metaphorjs/src/func/isPrimitive.js"),
+    varType     = require("../../metaphorjs/src/func/varType.js"),
     Observable  = require("../../metaphorjs-observable/src/metaphorjs.observable.js");
 
 module.exports = function(){
@@ -845,7 +846,7 @@ module.exports = function(){
         },
 
         isFailed        = function(value) {
-            return value === undf || (!value && typeof value == "number" && isNaN(value));
+            return value === undf || varType(value) == 8;
         },
 
         wrapFunc        = function(func, returnsValue) {
@@ -887,6 +888,8 @@ module.exports = function(){
                 return getterCache[expr];
             }
             catch (thrownError){
+                throw thrownError;
+                error(thrownError);
                 return emptyFn;
             }
         },

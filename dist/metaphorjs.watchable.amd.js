@@ -196,7 +196,8 @@ var equals = function(){
 
 
 var isObject = function(value) {
-    return value !== null && typeof value == "object" && varType(value) > 2;
+    var vt = varType(value);
+    return value !== null && typeof value == "object" && (vt > 2 || vt == -1);
 };
 
 
@@ -275,7 +276,8 @@ var error = function(e) {
 
 
 var isPrimitive = function(value) {
-    return varType(value) < 3;
+    var vt = varType(value);
+    return vt < 3 && vt > -1;
 };
 
 
@@ -1111,7 +1113,7 @@ return function(){
         },
 
         isFailed        = function(value) {
-            return value === undf || (!value && typeof value == "number" && isNaN(value));
+            return value === undf || varType(value) == 8;
         },
 
         wrapFunc        = function(func, returnsValue) {
@@ -1153,6 +1155,8 @@ return function(){
                 return getterCache[expr];
             }
             catch (thrownError){
+                throw thrownError;
+                error(thrownError);
                 return emptyFn;
             }
         },
