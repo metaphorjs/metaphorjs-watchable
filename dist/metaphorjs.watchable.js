@@ -1850,7 +1850,6 @@ Watchable = createWatchable = function(){
                 return getterCache[expr];
             }
             catch (thrownError){
-                throw thrownError;
                 error(thrownError);
                 return emptyFn;
             }
@@ -1875,6 +1874,7 @@ Watchable = createWatchable = function(){
                 return setterCache[expr];
             }
             catch (thrownError) {
+                error(thrownError);
                 return emptyFn;
             }
         },
@@ -1896,6 +1896,7 @@ Watchable = createWatchable = function(){
                 return funcCache[expr];
             }
             catch (thrownError) {
+                error(thrownError);
                 return emptyFn;
             }
         },
