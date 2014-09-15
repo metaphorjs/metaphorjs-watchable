@@ -12,7 +12,8 @@ var nextUid     = require("../../metaphorjs/src/func/nextUid.js"),
     error       = require("../../metaphorjs/src/func/error.js"),
     isPrimitive = require("../../metaphorjs/src/func/isPrimitive.js"),
     varType     = require("../../metaphorjs/src/func/varType.js"),
-    Observable  = require("../../metaphorjs-observable/src/metaphorjs.observable.js");
+    Observable  = require("../../metaphorjs-observable/src/metaphorjs.observable.js"),
+    levenshteinArray   = require("../../metaphorjs/src/func/array/levenshteinArray.js");
 
 module.exports = function(){
 
@@ -38,97 +39,6 @@ module.exports = function(){
             return false;
         },
 
-
-        levenshteinArray = function(S1, S2) {
-
-            var m = S1.length,
-                n = S2.length,
-                D = new Array(m + 1),
-                P = new Array(m + 1),
-                i, j, c,
-                route,
-                cost,
-                dist,
-                ops = 0;
-
-            if (m == n && m == 0) {
-                return {
-                    changes: 0,
-                    distance: 0,
-                    prescription: []
-                };
-            }
-
-            for (i = 0; i <= m; i++) {
-                D[i]    = new Array(n + 1);
-                P[i]    = new Array(n + 1);
-                D[i][0] = i;
-                P[i][0] = 'D';
-            }
-            for (i = 0; i <= n; i++) {
-                D[0][i] = i;
-                P[0][i] = 'I';
-            }
-
-            for (i = 1; i <= m; i++) {
-                for (j = 1; j <= n; j++) {
-                    cost = (!equals(S1[i - 1], S2[j - 1])) ? 1 : 0;
-
-                    if(D[i][j - 1] < D[i - 1][j] && D[i][j - 1] < D[i - 1][j - 1] + cost) {
-                        //Insert
-                        D[i][j] = D[i][j - 1] + 1;
-                        P[i][j] = 'I';
-                    }
-                    else if(D[i - 1][j] < D[i - 1][j - 1] + cost) {
-                        //Delete
-                        D[i][j] = D[i - 1][j] + 1;
-                        P[i][j] = 'D';
-                    }
-                    else {
-                        //Replace or noop
-                        D[i][j] = D[i - 1][j - 1] + cost;
-                        if (cost == 1) {
-                            P[i][j] = 'R';
-                        }
-                        else {
-                            P[i][j] = '-';
-                        }
-                    }
-                }
-            }
-
-            //Prescription
-            route = [];
-            i = m;
-            j = n;
-
-            do {
-                c = P[i][j];
-                route.push(c);
-                if (c != '-') {
-                    ops++;
-                }
-                if(c == 'R' || c == '-') {
-                    i --;
-                    j --;
-                }
-                else if(c == 'D') {
-                    i --;
-                }
-                else {
-                    j --;
-                }
-            } while((i != 0) || (j != 0));
-
-            dist = D[m][n];
-
-            return {
-                changes: ops / route.length,
-                distance: dist,
-                prescription: route.reverse()
-            };
-        },
-
         prescription2moves = function(a1, a2, prs, getKey) {
 
             var newPrs = [],
@@ -139,7 +49,10 @@ module.exports = function(){
                 index;
 
             for (i = 0, l = a1.length; i < l; i++) {
-                map1[getKey(a1[i])] = i;
+                k = getKey(a1[i]);
+                if (k) {
+                    map1[k] = i;
+                }
             }
 
             a2i = 0;
@@ -155,7 +68,7 @@ module.exports = function(){
 
                 k = getKey(a2[a2i]);
 
-                if (k !== undf && used[k] !== true && (index = map1[k]) !== undf) {
+                if (k != undf && used[k] !== true && (index = map1[k]) !== undf) {
                     newPrs.push(index);
                     used[k] = true;
                 }
@@ -190,31 +103,26 @@ module.exports = function(){
 
         self.origCode = code;
 
-        if (isArray(dataObj) && code === null) {
-            type    = "array";
+        if (!isString(code)) {
+            fnScope = fn;
+            fn      = code;
+            code    = null;
+            type    = "object";
         }
-        else {
-
-            if (!isString(code)) {
-                fnScope = fn;
-                fn      = code;
-                code    = null;
-                type    = "object"; // isArray(obj) ? "collection" :
-            }
-            if (isString(dataObj)) {
-                fnScope = fn;
-                fn      = code;
-                code    = dataObj;
-                dataObj = null;
-            }
-
-            if (code && dataObj) {
-                type    = dataObj.hasOwnProperty(code) ? "attr" : "expr";
-            }
-            if (code && !dataObj) {
-                type    = "expr";
-            }
+        if (isString(dataObj)) {
+            fnScope = fn;
+            fn      = code;
+            code    = dataObj;
+            dataObj = null;
         }
+
+        if (code && dataObj) {
+            type    = dataObj.hasOwnProperty(code) ? "attr" : "expr";
+        }
+        if (code && !dataObj) {
+            type    = "expr";
+        }
+
 
         if (fn) {
             observable.on(id, fn, fnScope || this, {
@@ -399,72 +307,6 @@ module.exports = function(){
             return ret;
         },
 
-        _checkCode: function() {
-
-            var self    = this,
-                val     = self._getValue(),
-                changed = false,
-                prev    = self.curr,
-                lev;
-
-            if (isArray(prev) && isArray(val)) {
-
-                lev     = levenshteinArray(prev, val);
-
-                if (lev.changes) {
-                    self.curr = val.slice();
-                    self.prev = prev;
-                    observable.trigger(self.id, lev, val, prev);
-
-                    return true;
-                }
-
-                return false;
-            }
-
-            if (!equals(prev, val)) {
-                self.curr = val;
-                self.prev = prev;
-                observable.trigger(self.id, val, prev);
-                changed = true;
-            }
-
-            return changed;
-        },
-
-        _checkObject: function() {
-
-            var self    = this,
-                obj     = self.obj,
-                curr    = self.curr;
-
-            if (!equals(curr, obj)) {
-                self.curr = copy(obj);
-                self.prev = curr;
-                observable.trigger(self.id, obj, curr);
-                return true;
-            }
-
-            return false;
-        },
-
-        _checkArray: function() {
-
-            var self    = this,
-                curr    = self.curr,
-                obj     = self.obj,
-                lev     = levenshteinArray(curr, obj);
-
-            if (lev.changes) {
-                self.curr = obj.slice();
-                self.prev = curr;
-                observable.trigger(self.id, lev, obj, curr);
-                return true;
-            }
-
-            return false;
-        },
-
 
         _getValue: function() {
 
@@ -486,9 +328,6 @@ module.exports = function(){
                     }
                     break;
                 case "object":
-                    val = copy(self.obj);
-                    break;
-                case "array":
                     val = self.obj;
                     break;
             }
@@ -497,7 +336,9 @@ module.exports = function(){
                 if (!self.inputPipes) {
                     self._indexArrayItems(val);
                 }
-                val = val.slice();
+            }
+            if (!isPrimitive(val)) {
+                val = copy(val);
             }
 
             self.unfiltered = val;
@@ -568,8 +409,22 @@ module.exports = function(){
             }
         },
 
-        getMovePrescription: function(lvshtnPrescription, trackByFn) {
-            return prescription2moves(this.getPrevValue(), this.curr, lvshtnPrescription, trackByFn);
+        getPrescription: function(from, to) {
+            to = to || this._getValue();
+            return levenshteinArray(from, to).prescription;
+        },
+
+        getMovePrescription: function(from, trackByFn, to) {
+
+            var self    = this;
+                to      = to || self._getValue();
+
+            return prescription2moves(
+                from,
+                to,
+                self.getPrescription(from, to),
+                trackByFn
+            );
         },
 
         setValue: function(val) {
@@ -592,11 +447,8 @@ module.exports = function(){
 
                 self.setterFn(self.obj, val);
             }
-            else if (type == "array") {
+            else if (type == "object") {
                 self.obj = val;
-            }
-            else {
-                throw "Cannot set value";
             }
         },
 
@@ -610,19 +462,16 @@ module.exports = function(){
 
         check: function() {
 
-            var self    = this;
+            var self    = this,
+                val     = self._getValue(),
+                prev    = self.curr;
 
-            switch (self.type) {
-                case "expr":
-                case "attr":
-                case "static":
-                    return self._checkCode();
 
-                case "object":
-                    return self._checkObject();
-
-                case "array":
-                    return self._checkArray();
+            if (!equals(prev, val)) {
+                self.curr = val;
+                self.prev = prev;
+                observable.trigger(self.id, val, prev);
+                return true;
             }
 
             return false;
@@ -859,7 +708,7 @@ module.exports = function(){
 
                 val = func.apply(null, args);
 
-                if (returnsValue && isFailed(val)) {
+                if (returnsValue && val === undf) {//isFailed(val)) {
                     args = slice.call(arguments);
                     args.unshift(func);
                     args.unshift(null);

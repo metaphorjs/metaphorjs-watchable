@@ -82,7 +82,7 @@ var varType = function(){
         }
 
         if (num == 1 && isNaN(val)) {
-            num = 8;
+            return 8;
         }
 
         return num;
@@ -96,7 +96,7 @@ var varType = function(){
  * @returns {boolean}
  */
 var isArray = function(value) {
-    return varType(value) === 5;
+    return typeof value == "object" && varType(value) === 5;
 };
 var isFunction = function(value) {
     return typeof value == 'function';
@@ -104,7 +104,8 @@ var isFunction = function(value) {
 
 
 var isString = function(value) {
-    return varType(value) === 0;
+    return typeof value == "string" || value === ""+value;
+    //return typeof value == "string" || varType(value) === 0;
 };
 
 
@@ -138,9 +139,12 @@ var isRegExp = function(value) {
     return varType(value) === 9;
 };
 var isWindow = function(obj) {
-    return obj && obj.document && obj.location && obj.alert && obj.setInterval;
+    return obj === window ||
+           (obj && obj.document && obj.location && obj.alert && obj.setInterval);
 };
 
+
+// from Angular
 
 var equals = function(){
 
@@ -167,12 +171,12 @@ var equals = function(){
                     if (isWindow(o1) || isWindow(o2) || isArray(o2)) return false;
                     keySet = {};
                     for(key in o1) {
-                        if (key.charAt(0) === '$' && typeof o1[key] == "object") {
+                        if (key.charAt(0) == '$' || isFunction(o1[key])) {//&& typeof o1[key] == "object") {
                             continue;
                         }
-                        if (isFunction(o1[key])) {
-                            continue;
-                        }
+                        //if (isFunction(o1[key])) {
+                        //    continue;
+                        //}
                         if (!equals(o1[key], o2[key])) {
                             return false;
                         }
@@ -180,7 +184,7 @@ var equals = function(){
                     }
                     for(key in o2) {
                         if (!keySet.hasOwnProperty(key) &&
-                            key.charAt(0) !== '$' &&
+                            key.charAt(0) != '$' &&
                             o2[key] !== undf &&
                             !isFunction(o2[key])) return false;
                     }
@@ -196,51 +200,60 @@ var equals = function(){
 
 
 var isObject = function(value) {
+    if (value === null || typeof value != "object") {
+        return false;
+    }
     var vt = varType(value);
-    return value !== null && typeof value == "object" && (vt > 2 || vt == -1);
+    return vt > 2 || vt == -1;
+};
+
+
+var isPlainObject = function(value) {
+    // IE < 9 returns [object Object] from toString(htmlElement)
+    return typeof value == "object" && varType(value) === 3 && !value.nodeType;
 };
 
 
 var copy = function(){
 
-    var copy = function(source, destination){
+    var copy = function(source, dest){
         if (isWindow(source)) {
             throw new Error("Cannot copy window object");
         }
 
-        if (!destination) {
-            destination = source;
+        if (!dest) {
+            dest = source;
             if (source) {
                 if (isArray(source)) {
-                    destination = copy(source, []);
+                    dest = copy(source, []);
                 } else if (isDate(source)) {
-                    destination = new Date(source.getTime());
+                    dest = new Date(source.getTime());
                 } else if (isRegExp(source)) {
-                    destination = new RegExp(source.source);
-                } else if (isObject(source)) {
-                    destination = copy(source, {});
+                    dest = new RegExp(source.source);
+                } else if (isPlainObject(source)) {
+                    dest = copy(source, {});
                 }
             }
         } else {
-            if (source === destination) {
+            if (source === dest) {
                 throw new Error("Objects are identical");
             }
             if (isArray(source)) {
-                destination.length = 0;
-                for ( var i = 0; i < source.length; i++) {
-                    destination.push(copy(source[i]));
+                dest.length = 0;
+                for ( var i = 0, l = source.length; i < l; i++) {
+                    dest.push(copy(source[i]));
                 }
             } else {
                 var key;
-                for (key in destination) {
-                    delete destination[key];
+                for (key in dest) {
+                    delete dest[key];
                 }
                 for (key in source) {
-                    destination[key] = copy(source[key]);
+                    dest[key] = copy(source[key]);
                 }
             }
         }
-        return destination;
+        return dest;
     };
 
     return copy;
@@ -248,11 +261,12 @@ var copy = function(){
  * @param {Function} fn
  * @param {Object} context
  * @param {[]} args
+ * @param {number} timeout
  */
-var async = function(fn, context, args) {
+var async = function(fn, context, args, timeout) {
     setTimeout(function(){
         fn.apply(context, args || []);
-    }, 0);
+    }, timeout || 0);
 };
 var strUndef = "undefined";
 
@@ -281,6 +295,97 @@ var isPrimitive = function(value) {
 };
 
 
+var levenshteinArray = function(from, to) {
+
+    var m = from.length,
+        n = to.length,
+        D = new Array(m + 1),
+        P = new Array(m + 1),
+        i, j, c,
+        route,
+        cost,
+        dist,
+        ops = 0;
+
+    if (m == n && m == 0) {
+        return {
+            changes: 0,
+            distance: 0,
+            prescription: []
+        };
+    }
+
+    for (i = 0; i <= m; i++) {
+        D[i]    = new Array(n + 1);
+        P[i]    = new Array(n + 1);
+        D[i][0] = i;
+        P[i][0] = 'D';
+    }
+    for (i = 0; i <= n; i++) {
+        D[0][i] = i;
+        P[0][i] = 'I';
+    }
+
+    for (i = 1; i <= m; i++) {
+        for (j = 1; j <= n; j++) {
+            cost = (!equals(from[i - 1], to[j - 1])) ? 1 : 0;
+
+            if(D[i][j - 1] < D[i - 1][j] && D[i][j - 1] < D[i - 1][j - 1] + cost) {
+                //Insert
+                D[i][j] = D[i][j - 1] + 1;
+                P[i][j] = 'I';
+            }
+            else if(D[i - 1][j] < D[i - 1][j - 1] + cost) {
+                //Delete
+                D[i][j] = D[i - 1][j] + 1;
+                P[i][j] = 'D';
+            }
+            else {
+                //Replace or noop
+                D[i][j] = D[i - 1][j - 1] + cost;
+                if (cost == 1) {
+                    P[i][j] = 'R';
+                }
+                else {
+                    P[i][j] = '-';
+                }
+            }
+        }
+    }
+
+    //Prescription
+    route = [];
+    i = m;
+    j = n;
+
+    do {
+        c = P[i][j];
+        route.push(c);
+        if (c != '-') {
+            ops++;
+        }
+        if(c == 'R' || c == '-') {
+            i --;
+            j --;
+        }
+        else if(c == 'D') {
+            i --;
+        }
+        else {
+            j --;
+        }
+    } while((i != 0) || (j != 0));
+
+    dist = D[m][n];
+
+    return {
+        changes: ops / route.length,
+        distance: dist,
+        prescription: route.reverse()
+    };
+};
+
+
 return function(){
 
     
@@ -305,97 +410,6 @@ return function(){
             return false;
         },
 
-
-        levenshteinArray = function(S1, S2) {
-
-            var m = S1.length,
-                n = S2.length,
-                D = new Array(m + 1),
-                P = new Array(m + 1),
-                i, j, c,
-                route,
-                cost,
-                dist,
-                ops = 0;
-
-            if (m == n && m == 0) {
-                return {
-                    changes: 0,
-                    distance: 0,
-                    prescription: []
-                };
-            }
-
-            for (i = 0; i <= m; i++) {
-                D[i]    = new Array(n + 1);
-                P[i]    = new Array(n + 1);
-                D[i][0] = i;
-                P[i][0] = 'D';
-            }
-            for (i = 0; i <= n; i++) {
-                D[0][i] = i;
-                P[0][i] = 'I';
-            }
-
-            for (i = 1; i <= m; i++) {
-                for (j = 1; j <= n; j++) {
-                    cost = (!equals(S1[i - 1], S2[j - 1])) ? 1 : 0;
-
-                    if(D[i][j - 1] < D[i - 1][j] && D[i][j - 1] < D[i - 1][j - 1] + cost) {
-                        //Insert
-                        D[i][j] = D[i][j - 1] + 1;
-                        P[i][j] = 'I';
-                    }
-                    else if(D[i - 1][j] < D[i - 1][j - 1] + cost) {
-                        //Delete
-                        D[i][j] = D[i - 1][j] + 1;
-                        P[i][j] = 'D';
-                    }
-                    else {
-                        //Replace or noop
-                        D[i][j] = D[i - 1][j - 1] + cost;
-                        if (cost == 1) {
-                            P[i][j] = 'R';
-                        }
-                        else {
-                            P[i][j] = '-';
-                        }
-                    }
-                }
-            }
-
-            //Prescription
-            route = [];
-            i = m;
-            j = n;
-
-            do {
-                c = P[i][j];
-                route.push(c);
-                if (c != '-') {
-                    ops++;
-                }
-                if(c == 'R' || c == '-') {
-                    i --;
-                    j --;
-                }
-                else if(c == 'D') {
-                    i --;
-                }
-                else {
-                    j --;
-                }
-            } while((i != 0) || (j != 0));
-
-            dist = D[m][n];
-
-            return {
-                changes: ops / route.length,
-                distance: dist,
-                prescription: route.reverse()
-            };
-        },
-
         prescription2moves = function(a1, a2, prs, getKey) {
 
             var newPrs = [],
@@ -406,7 +420,10 @@ return function(){
                 index;
 
             for (i = 0, l = a1.length; i < l; i++) {
-                map1[getKey(a1[i])] = i;
+                k = getKey(a1[i]);
+                if (k) {
+                    map1[k] = i;
+                }
             }
 
             a2i = 0;
@@ -422,7 +439,7 @@ return function(){
 
                 k = getKey(a2[a2i]);
 
-                if (k !== undf && used[k] !== true && (index = map1[k]) !== undf) {
+                if (k != undf && used[k] !== true && (index = map1[k]) !== undf) {
                     newPrs.push(index);
                     used[k] = true;
                 }
@@ -457,31 +474,26 @@ return function(){
 
         self.origCode = code;
 
-        if (isArray(dataObj) && code === null) {
-            type    = "array";
+        if (!isString(code)) {
+            fnScope = fn;
+            fn      = code;
+            code    = null;
+            type    = "object";
         }
-        else {
-
-            if (!isString(code)) {
-                fnScope = fn;
-                fn      = code;
-                code    = null;
-                type    = "object"; // isArray(obj) ? "collection" :
-            }
-            if (isString(dataObj)) {
-                fnScope = fn;
-                fn      = code;
-                code    = dataObj;
-                dataObj = null;
-            }
-
-            if (code && dataObj) {
-                type    = dataObj.hasOwnProperty(code) ? "attr" : "expr";
-            }
-            if (code && !dataObj) {
-                type    = "expr";
-            }
+        if (isString(dataObj)) {
+            fnScope = fn;
+            fn      = code;
+            code    = dataObj;
+            dataObj = null;
         }
+
+        if (code && dataObj) {
+            type    = dataObj.hasOwnProperty(code) ? "attr" : "expr";
+        }
+        if (code && !dataObj) {
+            type    = "expr";
+        }
+
 
         if (fn) {
             observable.on(id, fn, fnScope || this, {
@@ -666,72 +678,6 @@ return function(){
             return ret;
         },
 
-        _checkCode: function() {
-
-            var self    = this,
-                val     = self._getValue(),
-                changed = false,
-                prev    = self.curr,
-                lev;
-
-            if (isArray(prev) && isArray(val)) {
-
-                lev     = levenshteinArray(prev, val);
-
-                if (lev.changes) {
-                    self.curr = val.slice();
-                    self.prev = prev;
-                    observable.trigger(self.id, lev, val, prev);
-
-                    return true;
-                }
-
-                return false;
-            }
-
-            if (!equals(prev, val)) {
-                self.curr = val;
-                self.prev = prev;
-                observable.trigger(self.id, val, prev);
-                changed = true;
-            }
-
-            return changed;
-        },
-
-        _checkObject: function() {
-
-            var self    = this,
-                obj     = self.obj,
-                curr    = self.curr;
-
-            if (!equals(curr, obj)) {
-                self.curr = copy(obj);
-                self.prev = curr;
-                observable.trigger(self.id, obj, curr);
-                return true;
-            }
-
-            return false;
-        },
-
-        _checkArray: function() {
-
-            var self    = this,
-                curr    = self.curr,
-                obj     = self.obj,
-                lev     = levenshteinArray(curr, obj);
-
-            if (lev.changes) {
-                self.curr = obj.slice();
-                self.prev = curr;
-                observable.trigger(self.id, lev, obj, curr);
-                return true;
-            }
-
-            return false;
-        },
-
 
         _getValue: function() {
 
@@ -753,9 +699,6 @@ return function(){
                     }
                     break;
                 case "object":
-                    val = copy(self.obj);
-                    break;
-                case "array":
                     val = self.obj;
                     break;
             }
@@ -764,7 +707,9 @@ return function(){
                 if (!self.inputPipes) {
                     self._indexArrayItems(val);
                 }
-                val = val.slice();
+            }
+            if (!isPrimitive(val)) {
+                val = copy(val);
             }
 
             self.unfiltered = val;
@@ -835,8 +780,22 @@ return function(){
             }
         },
 
-        getMovePrescription: function(lvshtnPrescription, trackByFn) {
-            return prescription2moves(this.getPrevValue(), this.curr, lvshtnPrescription, trackByFn);
+        getPrescription: function(from, to) {
+            to = to || this._getValue();
+            return levenshteinArray(from, to).prescription;
+        },
+
+        getMovePrescription: function(from, trackByFn, to) {
+
+            var self    = this;
+                to      = to || self._getValue();
+
+            return prescription2moves(
+                from,
+                to,
+                self.getPrescription(from, to),
+                trackByFn
+            );
         },
 
         setValue: function(val) {
@@ -859,11 +818,8 @@ return function(){
 
                 self.setterFn(self.obj, val);
             }
-            else if (type == "array") {
+            else if (type == "object") {
                 self.obj = val;
-            }
-            else {
-                throw "Cannot set value";
             }
         },
 
@@ -877,19 +833,16 @@ return function(){
 
         check: function() {
 
-            var self    = this;
+            var self    = this,
+                val     = self._getValue(),
+                prev    = self.curr;
 
-            switch (self.type) {
-                case "expr":
-                case "attr":
-                case "static":
-                    return self._checkCode();
 
-                case "object":
-                    return self._checkObject();
-
-                case "array":
-                    return self._checkArray();
+            if (!equals(prev, val)) {
+                self.curr = val;
+                self.prev = prev;
+                observable.trigger(self.id, val, prev);
+                return true;
             }
 
             return false;
@@ -1126,7 +1079,7 @@ return function(){
 
                 val = func.apply(null, args);
 
-                if (returnsValue && isFailed(val)) {
+                if (returnsValue && val === undf) {//isFailed(val)) {
                     args = slice.call(arguments);
                     args.unshift(func);
                     args.unshift(null);
