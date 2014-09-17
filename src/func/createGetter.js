@@ -1,5 +1,4 @@
 
+var functionFactory = require("./util/functionFactory.js");
 
-var Watchable = require("../metaphorjs.watchable.js");
-
-module.exports = Watchable.createGetter;
+module.exports = functionFactory.createGetter;

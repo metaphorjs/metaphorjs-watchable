@@ -13,15 +13,15 @@ var nextUid     = require("../../metaphorjs/src/func/nextUid.js"),
     isPrimitive = require("../../metaphorjs/src/func/isPrimitive.js"),
     varType     = require("../../metaphorjs/src/func/varType.js"),
     Observable  = require("../../metaphorjs-observable/src/metaphorjs.observable.js"),
-    levenshteinArray   = require("../../metaphorjs/src/func/array/levenshteinArray.js");
+    levenshteinArray   = require("../../metaphorjs/src/func/array/levenshteinArray.js"),
+    createGetter = require("./func/createGetter.js"),
+    createSetter = require("./func/createSetter.js");
 
 module.exports = function(){
 
     "use strict";
 
-    var REG_REPLACE_EXPR = /(^|[^a-z0-9_$])(\.)([^0-9])/ig,
-
-        isStatic    = function(val) {
+    var isStatic    = function(val) {
 
             if (!isString(val)) {
                 return true;
@@ -156,7 +156,7 @@ module.exports = function(){
         }
 
         self.curr       = self._getValue();
-
+        self.currCopy   = isPrimitive(self.curr) ? self.curr : copy(self.curr);
     };
 
     Watchable.prototype = {
@@ -173,6 +173,7 @@ module.exports = function(){
         obj: null,
         itv: null,
         curr: null,
+        currCopy: null,
         prev: null,
         unfiltered: null,
         pipes: null,
@@ -323,23 +324,26 @@ module.exports = function(){
                     break;
                 case "expr":
                     val = self.getterFn(self.obj);
-                    if (val === undf) {
-                        val = "";
-                    }
+                    //if (val === undf) {
+                    //    val = "";
+                    //}
                     break;
                 case "object":
                     val = self.obj;
                     break;
             }
 
+
             if (isArray(val)) {
                 if (!self.inputPipes) {
                     self._indexArrayItems(val);
                 }
+                val = val.slice();
             }
-            if (!isPrimitive(val)) {
-                val = copy(val);
-            }
+
+            //if (!isPrimitive(val)) {
+            //    val = copy(val);
+            //}
 
             self.unfiltered = val;
 
@@ -347,6 +351,7 @@ module.exports = function(){
 
             return val;
         },
+
 
         _runThroughPipes: function(val, pipes) {
 
@@ -400,13 +405,14 @@ module.exports = function(){
         },
 
         getPrevValue: function() {
-            var self = this;
+            return this.prev;
+            /*var self = this;
             if (self.prev === null) {
                 return self._getValue();
             }
             else {
                 return self.prev;
-            }
+            }*/
         },
 
         getPrescription: function(from, to) {
@@ -446,6 +452,8 @@ module.exports = function(){
                 }
 
                 self.setterFn(self.obj, val);
+                //console.log(self.code, val, self.obj, self.setterFn)
+                //console.log(self.obj.todo.done)
             }
             else if (type == "object") {
                 self.obj = val;
@@ -464,13 +472,13 @@ module.exports = function(){
 
             var self    = this,
                 val     = self._getValue(),
-                prev    = self.curr;
+                curr    = self.currCopy;
 
-
-            if (!equals(prev, val)) {
+            if (!equals(curr, val)) {
                 self.curr = val;
-                self.prev = prev;
-                observable.trigger(self.id, val, prev);
+                self.prev = curr;
+                self.currCopy = isPrimitive(val) ? val : copy(val);
+                observable.trigger(self.id, val, curr);
                 return true;
             }
 
@@ -657,164 +665,21 @@ module.exports = function(){
         },
 
 
-        f               = Function,
-        fnBodyStart     = 'try {',
-        getterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____); }',
-        setterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____, $$$$); }',
-
-        prepareCode     = function prepareCode(expr) {
-            return expr.replace(REG_REPLACE_EXPR, '$1____.$3');
-        },
-
-
-        interceptor     = function(thrownError, func, scope, value) {
-
-            while (scope && !scope.$isRoot) {
-
-                scope = scope.$parent;
-
-                if (scope) {
-
-                    try {
-                        if (arguments.length == 4) {
-                            return func.call(null, scope, value, emptyFn, func);
-                        }
-                        else {
-                            return func.call(null, scope, emptyFn, func);
-                        }
-                    }
-                    catch (newError) {}
-                }
-            }
-
-            if (thrownError !== null) {
-                error(thrownError);
-            }
-
-            return undf;
-        },
-
-        isFailed        = function(value) {
-            return value === undf || varType(value) == 8;
-        },
-
-        wrapFunc        = function(func, returnsValue) {
-            return function() {
-                var args = slice.call(arguments),
-                    val;
-
-                args.push(interceptor);
-                args.push(func);
-
-                val = func.apply(null, args);
-
-                if (returnsValue && val === undf) {//isFailed(val)) {
-                    args = slice.call(arguments);
-                    args.unshift(func);
-                    args.unshift(null);
-                    return interceptor.apply(null, args);
-                }
-                else {
-                    return val;
-                }
-            };
-        },
-
-        getterCache     = {},
-        getterCacheCnt  = 0,
-
-        createGetter    = function createGetter(expr) {
-            try {
-                if (!getterCache[expr]) {
-                    getterCacheCnt++;
-                    return getterCache[expr] = wrapFunc(new f(
-                        '____',
-                        '$$interceptor',
-                        '$$itself',
-                        "".concat(fnBodyStart, 'return ', expr.replace(REG_REPLACE_EXPR, '$1____.$3'), getterBodyEnd)
-                    ), true);
-                }
-                return getterCache[expr];
-            }
-            catch (thrownError){
-                error(thrownError);
-                return emptyFn;
-            }
-        },
-
-        setterCache     = {},
-        setterCacheCnt  = 0,
-
-        createSetter    = function createSetter(expr) {
-            try {
-                if (!setterCache[expr]) {
-                    setterCacheCnt++;
-                    var code = expr.replace(REG_REPLACE_EXPR, '$1____.$3');
-                    return setterCache[expr] = wrapFunc(new f(
-                        '____',
-                        '$$$$',
-                        '$$interceptor',
-                        '$$itself',
-                        "".concat(fnBodyStart, code, ' = $$$$', setterBodyEnd)
-                    ));
-                }
-                return setterCache[expr];
-            }
-            catch (thrownError) {
-                error(thrownError);
-                return emptyFn;
-            }
-        },
-
-        funcCache       = {},
-        funcCacheCnt    = 0,
-
-        createFunc      = function createFunc(expr) {
-            try {
-                if (!funcCache[expr]) {
-                    funcCacheCnt++;
-                    return funcCache[expr] = wrapFunc(new f(
-                        '____',
-                        '$$interceptor',
-                        '$$itself',
-                        "".concat(fnBodyStart, expr.replace(REG_REPLACE_EXPR, '$1____.$3'), getterBodyEnd)
-                    ));
-                }
-                return funcCache[expr];
-            }
-            catch (thrownError) {
-                error(thrownError);
-                return emptyFn;
-            }
-        },
-
         evaluate    = function(expr, scope) {
             var val;
             if (val = isStatic(expr)) {
                 return val;
             }
             return createGetter(expr)(scope);
-        },
-
-        resetCache  = function() {
-            getterCacheCnt >= 1000 && (getterCache = {});
-            setterCacheCnt >= 1000 && (setterCache = {});
-            funcCacheCnt >= 1000 && (funcCache = {});
         };
+
 
 
     Watchable.create = create;
     Watchable.unsubscribeAndDestroy = unsubscribeAndDestroy;
     Watchable.normalizeExpr = normalizeExpr;
-    Watchable.prepareCode = prepareCode;
-    Watchable.createGetter = createGetter;
-    Watchable.createSetter = createSetter;
-    Watchable.createFunc = createFunc;
     Watchable.eval = evaluate;
 
-    Watchable.enableResetCacheInterval = function() {
-        setTimeout(resetCache, 10000);
-    };
 
     return Watchable;
 }();
