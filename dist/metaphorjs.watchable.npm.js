@@ -8,7 +8,7 @@ var nextUid = function(){
     var uid = ['0', '0', '0'];
 
     // from AngularJs
-    return function() {
+    return function nextUid() {
         var index = uid.length;
         var digit;
 
@@ -64,7 +64,7 @@ var varType = function(){
         'date': 10
     */
 
-    return function(val) {
+    return function varType(val) {
 
         if (!val) {
             if (val === null) {
@@ -95,15 +95,15 @@ var varType = function(){
  * @param {*} value
  * @returns {boolean}
  */
-var isArray = function(value) {
+function isArray(value) {
     return typeof value == "object" && varType(value) === 5;
 };
-var isFunction = function(value) {
+function isFunction(value) {
     return typeof value == 'function';
 };
 
 
-var isString = function(value) {
+function isString(value) {
     return typeof value == "string" || value === ""+value;
     //return typeof value == "string" || varType(value) === 0;
 };
@@ -125,20 +125,20 @@ var trim = function() {
     };
 }();
 
-var emptyFn = function(){};
+function emptyFn(){};
 
 var slice = Array.prototype.slice;
 
 
-var isDate = function(value) {
+function isDate(value) {
     return varType(value) === 10;
 };
 
 
-var isRegExp = function(value) {
+function isRegExp(value) {
     return varType(value) === 9;
 };
-var isWindow = function(obj) {
+function isWindow(obj) {
     return obj === window ||
            (obj && obj.document && obj.location && obj.alert && obj.setInterval);
 };
@@ -148,7 +148,7 @@ var isWindow = function(obj) {
 
 var equals = function(){
 
-    var equals = function(o1, o2) {
+    var equals = function equals(o1, o2) {
         if (o1 === o2) return true;
         if (o1 === null || o2 === null) return false;
         if (o1 !== o1 && o2 !== o2) return true; // NaN === NaN
@@ -199,7 +199,7 @@ var equals = function(){
 }();
 
 
-var isObject = function(value) {
+function isObject(value) {
     if (value === null || typeof value != "object") {
         return false;
     }
@@ -208,15 +208,19 @@ var isObject = function(value) {
 };
 
 
-var isPlainObject = function(value) {
+function isPlainObject(value) {
     // IE < 9 returns [object Object] from toString(htmlElement)
-    return typeof value == "object" && varType(value) === 3 && !value.nodeType;
+    return typeof value == "object" &&
+           varType(value) === 3 &&
+            !value.nodeType &&
+            value.constructor === Object;
+
 };
 
 
 var copy = function(){
 
-    var copy = function(source, dest){
+    var copy = function copy(source, dest){
         if (isWindow(source)) {
             throw new Error("Cannot copy window object");
         }
@@ -264,13 +268,28 @@ var copy = function(){
     };
 
     return copy;
-}();/**
+}();
+/**
+ * @param {Function} fn
+ * @param {*} context
+ */
+var bind = Function.prototype.bind ?
+              function(fn, context){
+                  return fn.bind(context);
+              } :
+              function(fn, context) {
+                  return function() {
+                      return fn.apply(context, arguments);
+                  };
+              };
+
+/**
  * @param {Function} fn
  * @param {Object} context
  * @param {[]} args
  * @param {number} timeout
  */
-var async = function(fn, context, args, timeout) {
+function async(fn, context, args, timeout) {
     setTimeout(function(){
         fn.apply(context, args || []);
     }, timeout || 0);
@@ -278,7 +297,7 @@ var async = function(fn, context, args, timeout) {
 var strUndef = "undefined";
 
 
-var error = function(e) {
+function error(e) {
 
     var stack = e.stack || (new Error).stack;
 
@@ -296,13 +315,130 @@ var error = function(e) {
 };
 
 
-var isPrimitive = function(value) {
-    var vt = varType(value);
-    return vt < 3 && vt > -1;
+function isBool(value) {
+    return value === true || value === false;
+};
+function isNull(value) {
+    return value === null;
 };
 
 
-var levenshteinArray = function(from, to) {
+/**
+ * @param {Object} dst
+ * @param {Object} src
+ * @param {Object} src2 ... srcN
+ * @param {boolean} override = false
+ * @param {boolean} deep = false
+ * @returns {*}
+ */
+var extend = function(){
+
+    var extend = function extend() {
+
+
+        var override    = false,
+            deep        = false,
+            args        = slice.call(arguments),
+            dst         = args.shift(),
+            src,
+            k,
+            value;
+
+        if (isBool(args[args.length - 1])) {
+            override    = args.pop();
+        }
+        if (isBool(args[args.length - 1])) {
+            deep        = override;
+            override    = args.pop();
+        }
+
+        while (args.length) {
+            if (src = args.shift()) {
+                for (k in src) {
+
+                    if (src.hasOwnProperty(k) && (value = src[k]) !== undf) {
+
+                        if (deep) {
+                            if (dst[k] && isPlainObject(dst[k]) && isPlainObject(value)) {
+                                extend(dst[k], value, override, deep);
+                            }
+                            else {
+                                if (override === true || dst[k] == undf) { // == checks for null and undefined
+                                    if (isPlainObject(value)) {
+                                        dst[k] = {};
+                                        extend(dst[k], value, override, true);
+                                    }
+                                    else {
+                                        dst[k] = value;
+                                    }
+                                }
+                            }
+                        }
+                        else {
+                            if (override === true || dst[k] == undf) {
+                                dst[k] = value;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return dst;
+    };
+
+    return extend;
+}();
+
+
+function isPrimitive(value) {
+    var vt = varType(value);
+    return vt < 3 && vt > -1;
+};// https://gist.github.com/jdalton/5e34d890105aca44399f
+
+var isNative = function() {
+
+    // Used to resolve the internal `[[Class]]` of values.
+    var toString = Object.prototype.toString;
+
+    // Used to resolve the decompiled source of functions.
+    var fnToString = Function.prototype.toString;
+
+    // Used to detect host constructors (Safari > 4; really typed array specific).
+    var reHostCtor = /^\[object .+?Constructor\]$/;
+
+    // Compile a regexp using a common native method as a template.
+    // We chose `Object#toString` because there's a good chance it is not being mucked with.
+    var reNative = RegExp('^' +
+                          // Coerce `Object#toString` to a string.
+                          String(toString)
+                              // Escape any special regexp characters.
+                              .replace(/[.*+?^${}()|[\]\/\\]/g, '\\$&')
+                              // Replace mentions of `toString` with `.*?` to keep the template generic.
+                              // Replace thing like `for ...` to support environments, like Rhino, which add extra
+                              // info such as method arity.
+                              .replace(/toString|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
+    );
+
+    return function isNative(value) {
+        var type = typeof value;
+        return type == 'function'
+            // Use `Function#toString` to bypass the value's own `toString` method
+            // and avoid being faked out.
+            ? (!('prototype' in value) || reNative.test(fnToString.call(value)))
+            // Fallback to a host object check because some environments will represent
+            // things like typed arrays as DOM methods which may not conform to the
+            // normal native pattern.
+            : (value && type == 'object' && reHostCtor.test(toString.call(value))) || false;
+    };
+
+}();
+function returnFalse() {
+    return false;
+};
+
+
+function levenshteinArray(from, to) {
 
     var m = from.length,
         n = to.length,
@@ -399,11 +535,13 @@ var functionFactory = function() {
 
         f               = Function,
         fnBodyStart     = 'try {',
-        getterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____); }',
-        setterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____, $$$$); }',
+        //getterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____); }',
+        //setterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____, $$$$); }',
+        getterBodyEnd   = ';} catch (thrownError) { return undefined; }',
+        setterBodyEnd   = ';} catch (thrownError) { return undefined; }',
 
 
-        interceptor     = function(thrownError, func, scope, value) {
+        /*interceptor     = function(thrownError, func, scope, value) {
 
             while (scope && !scope.$isRoot) {
 
@@ -428,23 +566,35 @@ var functionFactory = function() {
             }
 
             return undf;
-        },
+        },*/
 
         isFailed        = function(val) {
             return val === undf || (typeof val == "number" && isNaN(val));
         },
 
         wrapFunc        = function(func, returnsValue) {
-            return function() {
+            return function(scope) {
                 var args = slice.call(arguments),
                     val;
 
-                args.push(interceptor);
+                //args.push(interceptor);
+                args.push(null);
                 args.push(func);
 
-                val = func.apply(null, args);
+                if (returnsValue) {
+                    val = func.apply(null, args);
+                    while (isFailed(val) && !scope.$isRoot) {
+                        scope = scope.$parent;
+                        args[0] = scope;
+                        val = func.apply(null, args);
+                    }
+                    return val;
+                }
+                else {
+                    return func.apply(null, args);
+                }
 
-                if (returnsValue && isFailed(val)) {//) {
+                /*if (returnsValue && isFailed(val)) {//) {
                     args = slice.call(arguments);
                     args.unshift(func);
                     args.unshift(null);
@@ -452,7 +602,7 @@ var functionFactory = function() {
                 }
                 else {
                     return val;
-                }
+                }*/
             };
         },
 
@@ -551,9 +701,9 @@ var createSetter = functionFactory.createSetter;
 
 module.exports = function(){
 
-    "use strict";
+    var nativeObserver  = Object.observe && isNative(Object.observe),
 
-    var isStatic    = function(val) {
+        isStatic    = function(val) {
 
             if (!isString(val)) {
                 return true;
@@ -626,7 +776,8 @@ module.exports = function(){
 
         var self    = this,
             id      = nextUid(),
-            type;
+            type,
+            useObserver = false;
 
         if (namespace) {
             self.namespace = namespace;
@@ -687,11 +838,34 @@ module.exports = function(){
             self.getterFn   = createGetter(code);
         }
 
-        self.curr       = self._getValue();
-        self.currCopy   = isPrimitive(self.curr) ? self.curr : copy(self.curr);
+        // disable Observer.observe() for now.
+        // it doesn't work with expressions and may confuse more than help.
+
+        /*if (type == "attr" && nativeObserver && !self.pipes && !self.inputPipes) {
+            self.curr   = self._getValue();
+            useObserver = isPrimitive(self.curr);
+        }*/
+        //useObserver = false;
+
+        if (type != "static" || self.pipes) {
+            self.curr = self.curr || self._getValue();
+            if (!useObserver) {
+                self.currCopy = isPrimitive(self.curr) ? self.curr : copy(self.curr);
+            }
+        }
+        else {
+            self.check = returnFalse;
+            self.curr = self.prev = self.staticValue;
+        }
+
+        if (useObserver) {
+            self.obsrvDelegate = bind(self.onObserverChange, self);
+            self.check = returnFalse;
+            Object.observe(self.obj, self.obsrvDelegate);
+        }
     };
 
-    Watchable.prototype = {
+    extend(Watchable.prototype, {
 
         namespace: null,
         nsGet: null,
@@ -712,6 +886,7 @@ module.exports = function(){
         inputPipes: null,
         lastSetValue: null,
         userData: null,
+        obsrvDelegate: null,
 
 
         _indexArrayItems: function(a) {
@@ -949,7 +1124,7 @@ module.exports = function(){
 
         getPrescription: function(from, to) {
             to = to || this._getValue();
-            return levenshteinArray(from, to).prescription;
+            return levenshteinArray(from || [], to || []).prescription;
         },
 
         getMovePrescription: function(from, trackByFn, to) {
@@ -958,9 +1133,9 @@ module.exports = function(){
                 to      = to || self._getValue();
 
             return prescription2moves(
-                from,
-                to,
-                self.getPrescription(from, to),
+                from || [],
+                to || [],
+                self.getPrescription(from || [], to || []),
                 trackByFn
             );
         },
@@ -984,23 +1159,43 @@ module.exports = function(){
                 }
 
                 self.setterFn(self.obj, val);
-                //console.log(self.code, val, self.obj, self.setterFn)
-                //console.log(self.obj.todo.done)
             }
             else if (type == "object") {
                 self.obj = val;
             }
         },
 
-        onInputParamChange: function() {
+        onInputParamChange: function(val, prev, async) {
             this.setValue(this.lastSetValue);
+            if (async) {
+                this.checkAll();
+            }
         },
 
-        onPipeParamChange: function() {
+        onPipeParamChange: function(val, prev, async) {
             this.check();
         },
 
-        check: function() {
+        /*onObserverChange: function(changes) {
+
+            var self = this,
+                code = self.code,
+                prev = self.curr,
+                i, l,
+                change;
+
+            for (i = 0, l = changes.length; i < l; i++) {
+                change = changes[i];
+                if (change.name == code) {
+                    self.prev = prev;
+                    self.curr = self._getValue(); // enforce pipes
+                    observable.trigger(self.id, self.curr, prev, true);
+                    break;
+                }
+            }
+        },*/
+
+        _check: function(async) {
 
             var self    = this,
                 val     = self._getValue(),
@@ -1010,11 +1205,15 @@ module.exports = function(){
                 self.curr = val;
                 self.prev = curr;
                 self.currCopy = isPrimitive(val) ? val : copy(val);
-                observable.trigger(self.id, val, curr);
+                observable.trigger(self.id, val, curr, async);
                 return true;
             }
 
             return false;
+        },
+
+        check: function(async) {
+            return this._check(async);
         },
 
         checkAll: function() {
@@ -1089,31 +1288,23 @@ module.exports = function(){
                 }
             }
 
-            if (self.obj) {
-                delete self.obj.$$watchers[self.origCode];
+            if (self.obsrvDelegate) {
+                Object.unobserve(self.obj, self.obsrvDelegate);
             }
 
-            delete self.id;
-            delete self.curr;
-            delete self.prev;
-            delete self.unfiltered;
-            delete self.obj;
-            delete self.pipes;
-            delete self.inputPipes;
-            delete self.origCode;
-            delete self.code;
-            delete self.getterFn;
-            delete self.setterFn;
-            delete self.lastSetValue;
-            delete self.staticValue;
-            delete self.userData;
-            delete self.namespace;
-            delete self.nsGet;
+            if (self.obj) {
+                delete self.obj.$$watchers.$codes[self.origCode];
+            }
 
             observable.destroyEvent(self.id);
 
+            for (i in self) {
+                if (self.hasOwnProperty(i)){
+                    self[i] = null;
+                }
+            }
         }
-    };
+    }, true, false);
 
 
     var create = function(obj, code, fn, fnScope, userData, namespace) {
@@ -1123,18 +1314,16 @@ module.exports = function(){
             if (obj) {
                 if (!obj.$$watchers) {
                     obj.$$watchers = {
+                        $codes: {},
                         $checkAll: function() {
 
-                            var self    = this,
+                            var ws      = this.$codes,
                                 i,
                                 changes = 0;
 
-                            for (i in self) {
+                            for (i in ws) {
 
-                                if (i.charAt(0) != '$' && self[i].check()) {
-                                    changes++;
-                                }
-                                else if (i.charAt(0) == '$' && self[i] instanceof Watchable && self[i].check()) {
+                                if (ws[i].check()) {
                                     changes++;
                                 }
                             }
@@ -1143,27 +1332,25 @@ module.exports = function(){
                         },
                         $destroyAll: function() {
 
-                            var self    = this,
+                            var ws      = this.$codes,
                                 i;
 
-                            for (i in self) {
-                                if (i.charAt(0) != '$' || self[i] instanceof Watchable) {
-                                    self[i].destroy();
-                                    delete self[i];
-                                }
+                            for (i in ws) {
+                                ws[i].destroy();
+                                delete ws[i];
                             }
                         }
                     };
                 }
 
-                if (obj.$$watchers[code]) {
-                    obj.$$watchers[code].subscribe(fn, fnScope, {append: [userData], allowDupes: true});
+                if (obj.$$watchers.$codes[code]) {
+                    obj.$$watchers.$codes[code].subscribe(fn, fnScope, {append: [userData], allowDupes: true});
                 }
                 else {
-                    obj.$$watchers[code] = new Watchable(obj, code, fn, fnScope, userData, namespace);
+                    obj.$$watchers.$codes[code] = new Watchable(obj, code, fn, fnScope, userData, namespace);
                 }
 
-                return obj.$$watchers[code];
+                return obj.$$watchers.$codes[code];
             }
             else {
                 return new Watchable(obj, code, fn, fnScope, userData, namespace);
@@ -1173,7 +1360,7 @@ module.exports = function(){
         unsubscribeAndDestroy = function(obj, code, fn, fnScope) {
             code = trim(code);
 
-            var ws = obj.$$watchers;
+            var ws = obj.$$watchers ? obj.$$watchers.$codes : null;
 
             if (ws && ws[code] && ws[code].unsubscribeAndDestroy(fn, fnScope)) {
                 delete ws[code];
@@ -1211,7 +1398,9 @@ module.exports = function(){
     Watchable.unsubscribeAndDestroy = unsubscribeAndDestroy;
     Watchable.normalizeExpr = normalizeExpr;
     Watchable.eval = evaluate;
-
+    Watchable.usesNativeObserver = function() {
+        return nativeObserver;
+    };
 
     return Watchable;
 }();

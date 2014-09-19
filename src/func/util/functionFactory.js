@@ -10,11 +10,13 @@ module.exports = function() {
 
         f               = Function,
         fnBodyStart     = 'try {',
-        getterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____); }',
-        setterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____, $$$$); }',
+        //getterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____); }',
+        //setterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____, $$$$); }',
+        getterBodyEnd   = ';} catch (thrownError) { return undefined; }',
+        setterBodyEnd   = ';} catch (thrownError) { return undefined; }',
 
 
-        interceptor     = function(thrownError, func, scope, value) {
+        /*interceptor     = function(thrownError, func, scope, value) {
 
             while (scope && !scope.$isRoot) {
 
@@ -39,23 +41,35 @@ module.exports = function() {
             }
 
             return undf;
-        },
+        },*/
 
         isFailed        = function(val) {
             return val === undf || (typeof val == "number" && isNaN(val));
         },
 
         wrapFunc        = function(func, returnsValue) {
-            return function() {
+            return function(scope) {
                 var args = slice.call(arguments),
                     val;
 
-                args.push(interceptor);
+                //args.push(interceptor);
+                args.push(null);
                 args.push(func);
 
-                val = func.apply(null, args);
+                if (returnsValue) {
+                    val = func.apply(null, args);
+                    while (isFailed(val) && !scope.$isRoot) {
+                        scope = scope.$parent;
+                        args[0] = scope;
+                        val = func.apply(null, args);
+                    }
+                    return val;
+                }
+                else {
+                    return func.apply(null, args);
+                }
 
-                if (returnsValue && isFailed(val)) {//) {
+                /*if (returnsValue && isFailed(val)) {//) {
                     args = slice.call(arguments);
                     args.unshift(func);
                     args.unshift(null);
@@ -63,7 +77,7 @@ module.exports = function() {
                 }
                 else {
                     return val;
-                }
+                }*/
             };
         },
 
