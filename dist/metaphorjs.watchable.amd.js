@@ -838,20 +838,23 @@ return function(){
             self.getterFn   = createGetter(code);
         }
 
-        // disable Observer.observe() for now.
-        // it doesn't work with expressions and may confuse more than help.
+        // Object.observe() doesn't work with expressions and may confuse more than help.
+        // so the only thing it does on change, it sets changed flag
+        // so that on the next digest cycle there wouldn't be any need
+        // to compare values.
+
+        // upd: still, the change event happens _after_ digest cycle
+        // so lets think some more. :(
 
         /*if (type == "attr" && nativeObserver && !self.pipes && !self.inputPipes) {
             self.curr   = self._getValue();
             useObserver = isPrimitive(self.curr);
-        }*/
-        //useObserver = false;
+        }
+        useObserver = false;*/
 
         if (type != "static" || self.pipes) {
             self.curr = self.curr || self._getValue();
-            if (!useObserver) {
-                self.currCopy = isPrimitive(self.curr) ? self.curr : copy(self.curr);
-            }
+            self.currCopy = isPrimitive(self.curr) ? self.curr : copy(self.curr);
         }
         else {
             self.check = returnFalse;
@@ -860,7 +863,6 @@ return function(){
 
         if (useObserver) {
             self.obsrvDelegate = bind(self.onObserverChange, self);
-            self.check = returnFalse;
             Object.observe(self.obj, self.obsrvDelegate);
         }
     };
@@ -887,6 +889,7 @@ return function(){
         lastSetValue: null,
         userData: null,
         obsrvDelegate: null,
+        obsrvChanged: false,
 
 
         _indexArrayItems: function(a) {
@@ -1031,9 +1034,6 @@ return function(){
                     break;
                 case "expr":
                     val = self.getterFn(self.obj);
-                    //if (val === undf) {
-                    //    val = "";
-                    //}
                     break;
                 case "object":
                     val = self.obj;
@@ -1047,10 +1047,6 @@ return function(){
                 }
                 val = val.slice();
             }
-
-            //if (!isPrimitive(val)) {
-            //    val = copy(val);
-            //}
 
             self.unfiltered = val;
 
@@ -1113,13 +1109,6 @@ return function(){
 
         getPrevValue: function() {
             return this.prev;
-            /*var self = this;
-            if (self.prev === null) {
-                return self._getValue();
-            }
-            else {
-                return self.prev;
-            }*/
         },
 
         getPrescription: function(from, to) {
@@ -1176,35 +1165,41 @@ return function(){
             this.check();
         },
 
-        /*onObserverChange: function(changes) {
+        onObserverChange: function(changes) {
 
             var self = this,
                 code = self.code,
-                prev = self.curr,
                 i, l,
                 change;
 
             for (i = 0, l = changes.length; i < l; i++) {
                 change = changes[i];
                 if (change.name == code) {
-                    self.prev = prev;
-                    self.curr = self._getValue(); // enforce pipes
-                    observable.trigger(self.id, self.curr, prev, true);
+                    self.obsrvChanged = true;
                     break;
                 }
             }
-        },*/
+        },
 
         _check: function(async) {
 
             var self    = this,
                 val     = self._getValue(),
-                curr    = self.currCopy;
+                curr    = self.currCopy,
+                eq;
 
-            if (!equals(curr, val)) {
+            if (self.obsrvDelegate) {
+                eq      = !self.obsrvChanged;
+            }
+            else {
+                eq      = equals(curr, val);
+            }
+
+            if (!eq) {
                 self.curr = val;
                 self.prev = curr;
                 self.currCopy = isPrimitive(val) ? val : copy(val);
+                self.obsrvChanged = false;
                 observable.trigger(self.id, val, curr, async);
                 return true;
             }
@@ -1293,7 +1288,8 @@ return function(){
             }
 
             if (self.obj) {
-                delete self.obj.$$watchers.$codes[self.origCode];
+                //delete self.obj.$$watchers.$codes[self.origCode];
+                self.obj.$$watchers.$codes[self.origCode] = null;
             }
 
             observable.destroyEvent(self.id);
@@ -1323,7 +1319,7 @@ return function(){
 
                             for (i in ws) {
 
-                                if (ws[i].check()) {
+                                if (ws[i] && ws[i].check()) {
                                     changes++;
                                 }
                             }
@@ -1336,8 +1332,11 @@ return function(){
                                 i;
 
                             for (i in ws) {
-                                ws[i].destroy();
-                                delete ws[i];
+                                if (ws[i]) {
+                                    ws[i].destroy();
+                                    //delete ws[i];
+                                    ws[i] = null;
+                                }
                             }
                         }
                     };
@@ -1363,7 +1362,8 @@ return function(){
             var ws = obj.$$watchers ? obj.$$watchers.$codes : null;
 
             if (ws && ws[code] && ws[code].unsubscribeAndDestroy(fn, fnScope)) {
-                delete ws[code];
+                //delete ws[code];
+                ws[code] = null;
             }
         },
 
