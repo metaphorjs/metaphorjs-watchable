@@ -1,5 +1,5 @@
 {
-    "version": "1.0.9",
+    "version": "1.0.10",
     "push": [
         "github"
     ],
@@ -17,10 +17,7 @@
                 ]
             ],
             "expose": [
-                [
-                    "MetaphorJs.lib",
-                    "Watchable"
-                ]
+                "Watchable"
             ]
         },
         "npm": {

@@ -32,8 +32,11 @@ var nextUid = function(){
     };
 }();
 
+
 var toString = Object.prototype.toString;
+
 var undf = undefined;
+
 
 
 
@@ -92,6 +95,7 @@ var varType = function(){
 }();
 
 
+
 /**
  * @param {*} value
  * @returns {boolean}
@@ -99,15 +103,18 @@ var varType = function(){
 function isArray(value) {
     return typeof value == "object" && varType(value) === 5;
 };
+
 function isFunction(value) {
     return typeof value == 'function';
 };
+
 
 
 function isString(value) {
     return typeof value == "string" || value === ""+value;
     //return typeof value == "string" || varType(value) === 0;
 };
+
 
 
 /**
@@ -126,9 +133,9 @@ var trim = function() {
     };
 }();
 
-function emptyFn(){};
 
 var slice = Array.prototype.slice;
+
 
 
 function isDate(value) {
@@ -136,13 +143,16 @@ function isDate(value) {
 };
 
 
+
 function isRegExp(value) {
     return varType(value) === 9;
 };
+
 function isWindow(obj) {
     return obj === window ||
            (obj && obj.document && obj.location && obj.alert && obj.setInterval);
 };
+
 
 
 // from Angular
@@ -200,14 +210,6 @@ var equals = function(){
 }();
 
 
-function isObject(value) {
-    if (value === null || typeof value != "object") {
-        return false;
-    }
-    var vt = varType(value);
-    return vt > 2 || vt == -1;
-};
-
 
 function isPlainObject(value) {
     // IE < 9 returns [object Object] from toString(htmlElement)
@@ -217,6 +219,7 @@ function isPlainObject(value) {
             value.constructor === Object;
 
 };
+
 
 
 var copy = function(){
@@ -270,6 +273,7 @@ var copy = function(){
 
     return copy;
 }();
+
 /**
  * @param {Function} fn
  * @param {*} context
@@ -284,44 +288,12 @@ var bind = Function.prototype.bind ?
                   };
               };
 
-/**
- * @param {Function} fn
- * @param {Object} context
- * @param {[]} args
- * @param {number} timeout
- */
-function async(fn, context, args, timeout) {
-    setTimeout(function(){
-        fn.apply(context, args || []);
-    }, timeout || 0);
-};
-var strUndef = "undefined";
-
-
-function error(e) {
-
-    var stack = e.stack || (new Error).stack;
-
-    if (typeof console != strUndef && console.log) {
-        async(function(){
-            console.log(e);
-            if (stack) {
-                console.log(stack);
-            }
-        });
-    }
-    else {
-        throw e;
-    }
-};
 
 
 function isBool(value) {
     return value === true || value === false;
 };
-function isNull(value) {
-    return value === null;
-};
+
 
 
 /**
@@ -392,10 +364,12 @@ var extend = function(){
 }();
 
 
+
 function isPrimitive(value) {
     var vt = varType(value);
     return vt < 3 && vt > -1;
-};// https://gist.github.com/jdalton/5e34d890105aca44399f
+};
+// https://gist.github.com/jdalton/5e34d890105aca44399f
 
 var isNative = function() {
 
@@ -434,9 +408,11 @@ var isNative = function() {
     };
 
 }();
+
 function returnFalse() {
     return false;
 };
+
 
 
 
@@ -1117,6 +1093,7 @@ extend(Event.prototype, {
 
 
 
+
 function levenshteinArray(from, to) {
 
     var m = from.length,
@@ -1206,6 +1183,42 @@ function levenshteinArray(from, to) {
         prescription: route.reverse()
     };
 };
+/**
+ * @param {Function} fn
+ * @param {Object} context
+ * @param {[]} args
+ * @param {number} timeout
+ */
+function async(fn, context, args, timeout) {
+    setTimeout(function(){
+        fn.apply(context, args || []);
+    }, timeout || 0);
+};
+
+var strUndef = "undefined";
+
+
+
+function error(e) {
+
+    var stack = e.stack || (new Error).stack;
+
+    if (typeof console != strUndef && console.log) {
+        async(function(){
+            console.log(e);
+            if (stack) {
+                console.log(stack);
+            }
+        });
+    }
+    else {
+        throw e;
+    }
+};
+
+
+function emptyFn(){};
+
 
 
 var functionFactory = function() {
@@ -1371,11 +1384,14 @@ var functionFactory = function() {
 }();
 
 
+
 var createGetter = functionFactory.createGetter;
 
 
 
+
 var createSetter = functionFactory.createSetter;
+
 
 
 var Watchable = function(){
@@ -2086,8 +2102,7 @@ var Watchable = function(){
 
 
 
-MetaphorJs.lib['Watchable'] = Watchable;
-
+MetaphorJs['Watchable'] = Watchable;
 typeof global != "undefined" ? (global['MetaphorJs'] = MetaphorJs) : (window['MetaphorJs'] = MetaphorJs);
 
 }());
