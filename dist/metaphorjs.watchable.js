@@ -2,13 +2,13 @@
 "use strict";
 
 
-/**
- * @returns {String}
- */
 var nextUid = function(){
     var uid = ['0', '0', '0'];
 
     // from AngularJs
+    /**
+     * @returns {String}
+     */
     return function nextUid() {
         var index = uid.length;
         var digit;
@@ -55,19 +55,21 @@ var varType = function(){
 
 
     /**
-        'string': 0,
-        'number': 1,
-        'boolean': 2,
-        'object': 3,
-        'function': 4,
-        'array': 5,
-        'null': 6,
-        'undefined': 7,
-        'NaN': 8,
-        'regexp': 9,
-        'date': 10
-    */
-
+     * 'string': 0,
+     * 'number': 1,
+     * 'boolean': 2,
+     * 'object': 3,
+     * 'function': 4,
+     * 'array': 5,
+     * 'null': 6,
+     * 'undefined': 7,
+     * 'NaN': 8,
+     * 'regexp': 9,
+     * 'date': 10,
+     * unknown: -1
+     * @param {*} value
+     * @returns {number}
+     */
     return function varType(val) {
 
         if (!val) {
@@ -118,7 +120,9 @@ function isString(value) {
 
 
 /**
+ * @function trim
  * @param {String} value
+ * @returns {string}
  */
 var trim = function() {
     // native trim is way faster: http://jsperf.com/angular-trim-test
@@ -220,13 +224,22 @@ function isPlainObject(value) {
 
 };
 
+var strUndef = "undefined";
 
 
-var copy = function(){
+
+var copy = function() {
+
+    var win = typeof window != strUndef ? window : null,
+        glob = typeof global != strUndef ? global : null;
 
     var copy = function copy(source, dest){
-        if (isWindow(source)) {
+
+        if (win && source === win) {
             throw new Error("Cannot copy window object");
+        }
+        if (glob && source === glob) {
+            throw new Error("Cannot copy global object");
         }
 
         if (!dest) {
@@ -296,16 +309,17 @@ function isBool(value) {
 
 
 
-/**
- * @param {Object} dst
- * @param {Object} src
- * @param {Object} src2 ... srcN
- * @param {boolean} override = false
- * @param {boolean} deep = false
- * @returns {*}
- */
+
 var extend = function(){
 
+    /**
+     * @param {Object} dst
+     * @param {Object} src
+     * @param {Object} src2 ... srcN
+     * @param {boolean} override = false
+     * @param {boolean} deep = false
+     * @returns {object}
+     */
     var extend = function extend() {
 
 
@@ -445,8 +459,7 @@ function returnFalse() {
  * this.trigger("event");
  * </code></pre>
  *
- * @namespace MetaphorJs
- * @class MetaphorJs.lib.Observable
+ * @class Observable
  * @version 1.1
  * @author johann kuindji
  * @link https://github.com/kuindji/metaphorjs-observable
@@ -484,6 +497,7 @@ extend(Observable.prototype, {
     *   false -- do not return results except if handler returned "false". This is how
     *   normal observables work.<br>
     *   "all" -- return all results as array<br>
+    *   "merge" -- merge all results into one array (each result must be array)<br>
     *   "first" -- return result of the first handler<br>
     *   "last" -- return result of the last handler
     *   @required
@@ -525,21 +539,21 @@ extend(Observable.prototype, {
     * }
     * @param {object} context "this" object for the callback function
     * @param {object} options {
-    *       @type bool first {
+    *       @type {bool} first {
     *           True to prepend to the list of handlers
     *           @default false
     *       }
-    *       @type number limit {
+    *       @type {number} limit {
     *           Call handler this number of times; 0 for unlimited
     *           @default 0
     *       }
-    *       @type number start {
+    *       @type {number} start {
     *           Start calling handler after this number of calls. Starts from 1
     *           @default 1
     *       }
-     *      @type [] append Append parameters
-     *      @type [] prepend Prepend parameters
-     *      @type bool allowDupes allow the same handler twice
+     *      @type {[]} append Append parameters
+     *      @type {[]} prepend Prepend parameters
+     *      @type {bool} allowDupes allow the same handler twice
     * }
     */
     on: function(name, fn, context, options) {
@@ -717,7 +731,7 @@ extend(Observable.prototype, {
 
 
     /**
-    * Destroy specific event
+    * Destroy observable
     * @method
     * @md-not-inheritable
     * @access public
@@ -778,7 +792,8 @@ extend(Observable.prototype, {
 /**
  * This class is private - you can't create an event other than via Observable.
  * See MetaphorJs.lib.Observable reference.
- * @class MetaphorJs.lib.ObservableEvent
+ * @class ObservableEvent
+ * @private
  */
 var Event = function(name, returnResult) {
 
@@ -797,6 +812,11 @@ var Event = function(name, returnResult) {
 
 extend(Event.prototype, {
 
+    /**
+     * Get event name
+     * @method
+     * @returns {string}
+     */
     getName: function() {
         return this.name;
     },
@@ -1030,7 +1050,8 @@ extend(Event.prototype, {
             return null;
         }
 
-        var ret     = returnResult == "all" ? [] : null,
+        var ret     = returnResult == "all" || returnResult == "merge" ?
+                        [] : null,
             q, l,
             res;
 
@@ -1069,17 +1090,17 @@ extend(Event.prototype, {
             if (returnResult == "all") {
                 ret.push(res);
             }
-
-            if (returnResult == "first") {
+            else if (returnResult == "merge" && res) {
+                ret = ret.concat(res);
+            }
+            else if (returnResult == "first") {
                 return res;
             }
-
-            if (returnResult == "last") {
+            else if (returnResult == "last") {
                 ret = res;
             }
-
-            if (returnResult == false && res === false) {
-                break;
+            else if (returnResult == false && res === false) {
+                return false;
             }
         }
 
@@ -1195,8 +1216,6 @@ function async(fn, context, args, timeout) {
     }, timeout || 0);
 };
 
-var strUndef = "undefined";
-
 
 
 function error(e) {
@@ -1223,7 +1242,7 @@ function emptyFn(){};
 
 var functionFactory = function() {
 
-    var REG_REPLACE_EXPR    = /(^|[^a-z0-9_$])(\.)([^0-9])/ig,
+    var REG_REPLACE_EXPR    = /(^|[^a-z0-9_$\]\)'"])(\.)([^0-9])/ig,
 
         f               = Function,
         fnBodyStart     = 'try {',
@@ -1302,6 +1321,7 @@ var functionFactory = function() {
         getterCacheCnt  = 0,
 
         createGetter    = function createGetter(expr) {
+
             try {
                 if (!getterCache[expr]) {
                     getterCacheCnt++;
@@ -1461,8 +1481,19 @@ var Watchable = function(){
 
         observable;
 
+    /**
+     * @class Watchable
+     */
 
-
+    /**
+     * @param {object} dataObj object containing observed property
+     * @param {string} code property name or custom code
+     * @param {function} fn optional listener
+     * @param {object} fnScope optional listener's "this" object
+     * @param {*} userData optional data to pass to the listener
+     * @param {Namespace} namespace optional namespace to get filters and pipes from
+     * @constructor
+     */
     var Watchable   = function(dataObj, code, fn, fnScope, userData, namespace) {
 
         if (!observable) {
@@ -1556,10 +1587,10 @@ var Watchable = function(){
             self.curr = self.prev = self.staticValue;
         }
 
-        if (useObserver) {
+        /*if (useObserver) {
             self.obsrvDelegate = bind(self.onObserverChange, self);
             Object.observe(self.obj, self.obsrvDelegate);
-        }
+        }*/
     };
 
     extend(Watchable.prototype, {
@@ -1651,7 +1682,7 @@ var Watchable = function(){
                 fn      = self.nsGet("filter." + name, true);
             }
             if (!fn) {
-                fn      = window[name] || dataObj[name];
+                fn      = (typeof window != "undefined" ? window[name] : null) || dataObj[name];
             }
 
             if (isFunction(fn)) {
@@ -1778,39 +1809,83 @@ var Watchable = function(){
             return val;
         },
 
+        /**
+         * Subscribe to the change event
+         * @method
+         * @param {function} fn listener
+         * @param {object} fnScope listener's "this" object
+         * @param {object} options see Observable's options in on()
+         */
         subscribe: function(fn, fnScope, options) {
             observable.on(this.id, fn, fnScope, options);
         },
 
+        /**
+         * Unsubscribe from change event
+         * @param {function} fn
+         * @param {object} fnScope
+         * @returns {*}
+         */
         unsubscribe: function(fn, fnScope) {
             return observable.un(this.id, fn, fnScope);
         },
 
+        /**
+         * @returns {boolean}
+         */
         hasPipes: function() {
             return this.pipes !== null;
         },
 
+        /**
+         * @returns {boolean}
+         */
         hasInputPipes: function() {
             return this.inputPipes != null;
         },
 
+        /**
+         * Get current value (filtered and via executing the code)
+         * @returns {*}
+         */
         getValue: function() {
             return this._getValue();
         },
 
+        /**
+         * Get last calculated value before filters were applied
+         * @returns {*}
+         */
         getUnfilteredValue: function() {
             return this.unfiltered || this.curr;
         },
 
+        /**
+         * Get previous value
+         * @returns {*}
+         */
         getPrevValue: function() {
             return this.prev;
         },
 
+        /**
+         * Get simple array change prescription
+         * @param {[]} from optional
+         * @param {[]} to optional
+         * @returns {[]}
+         */
         getPrescription: function(from, to) {
             to = to || this._getValue();
             return levenshteinArray(from || [], to || []).prescription;
         },
 
+        /**
+         * Get array change prescription with moves
+         * @param {[]} from
+         * @param {function} trackByFn
+         * @param {[]} to
+         * @returns {[]}
+         */
         getMovePrescription: function(from, trackByFn, to) {
 
             var self    = this;
@@ -1824,6 +1899,10 @@ var Watchable = function(){
             );
         },
 
+        /**
+         * Set value to observed property
+         * @param {*} val
+         */
         setValue: function(val) {
 
             var self    = this,
@@ -1902,18 +1981,35 @@ var Watchable = function(){
             return false;
         },
 
+        /**
+         * Check for changes
+         * @param {bool} async
+         * @returns {bool}
+         */
         check: function(async) {
             return this._check(async);
         },
 
+        /**
+         * Check all observed properties for changes
+         * @returns {bool}
+         */
         checkAll: function() {
             return this.obj.$$watchers.$checkAll();
         },
 
+        /**
+         * Get last calculated value (with filters and pipes)
+         * @returns {*}
+         */
         getLastResult: function() {
             return this.curr;
         },
 
+        /**
+         * Set time interval to check for changes periodically
+         * @param {number} ms
+         */
         setInterval: function(ms) {
 
             var self    = this;
@@ -1923,6 +2019,10 @@ var Watchable = function(){
             self.itv = setInterval(function(){self.check();}, ms);
         },
 
+        /**
+         * Clear check interval
+         * @method
+         */
         clearInterval: function() {
             var self    = this;
             if (self.itv) {
@@ -1931,6 +2031,12 @@ var Watchable = function(){
             }
         },
 
+        /**
+         * Unsubscribe and destroy if there are no other listeners
+         * @param {function} fn
+         * @param {object} fnScope
+         * @returns {boolean} true if destroyed
+         */
         unsubscribeAndDestroy: function(fn, fnScope) {
 
             var self    = this,
@@ -1948,6 +2054,9 @@ var Watchable = function(){
             return false;
         },
 
+        /**
+         * @method
+         */
         destroy: function() {
 
             var self    = this,
@@ -1998,6 +2107,17 @@ var Watchable = function(){
     }, true, false);
 
 
+    /**
+     * @method
+     * @static
+     * @param {object} obj
+     * @param {string} code
+     * @param {function} fn
+     * @param {object} fnScope
+     * @param {*} userData
+     * @param {Namespace} namespace
+     * @returns {Watchable}
+     */
     var create = function(obj, code, fn, fnScope, userData, namespace) {
 
             code = normalizeExpr(obj, trim(code));
@@ -2051,6 +2171,14 @@ var Watchable = function(){
             }
         },
 
+        /**
+         * @method
+         * @static
+         * @param {object} obj
+         * @param {string} code
+         * @param {function} fn
+         * @param {object} fnScope
+         */
         unsubscribeAndDestroy = function(obj, code, fn, fnScope) {
             code = trim(code);
 
@@ -2062,6 +2190,12 @@ var Watchable = function(){
             }
         },
 
+        /**
+         * Normalize expression
+         * @param {object} dataObj
+         * @param {string} expr
+         * @returns {string}
+         */
         normalizeExpr = function(dataObj, expr) {
             if (dataObj && expr) {
                 if (dataObj.hasOwnProperty(expr)) {
@@ -2078,7 +2212,12 @@ var Watchable = function(){
             return expr;
         },
 
-
+        /**
+         * Evaluate code against object
+         * @param {string} expr
+         * @param {object} scope
+         * @returns {*}
+         */
         evaluate    = function(expr, scope) {
             var val;
             if (val = isStatic(expr)) {

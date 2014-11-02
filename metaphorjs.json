@@ -21,6 +21,7 @@
             ]
         },
         "npm": {
+            "auto": true,
             "target": "dist/metaphorjs.watchable.npm.js",
             "compile": false,
             "files": [

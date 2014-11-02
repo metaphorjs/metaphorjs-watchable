@@ -1,13 +1,13 @@
 define("metaphorjs-watchable", ['metaphorjs-observable'], function(Observable) {
 
 
-/**
- * @returns {String}
- */
 var nextUid = function(){
     var uid = ['0', '0', '0'];
 
     // from AngularJs
+    /**
+     * @returns {String}
+     */
     return function nextUid() {
         var index = uid.length;
         var digit;
@@ -54,19 +54,21 @@ var varType = function(){
 
 
     /**
-        'string': 0,
-        'number': 1,
-        'boolean': 2,
-        'object': 3,
-        'function': 4,
-        'array': 5,
-        'null': 6,
-        'undefined': 7,
-        'NaN': 8,
-        'regexp': 9,
-        'date': 10
-    */
-
+     * 'string': 0,
+     * 'number': 1,
+     * 'boolean': 2,
+     * 'object': 3,
+     * 'function': 4,
+     * 'array': 5,
+     * 'null': 6,
+     * 'undefined': 7,
+     * 'NaN': 8,
+     * 'regexp': 9,
+     * 'date': 10,
+     * unknown: -1
+     * @param {*} value
+     * @returns {number}
+     */
     return function varType(val) {
 
         if (!val) {
@@ -117,7 +119,9 @@ function isString(value) {
 
 
 /**
+ * @function trim
  * @param {String} value
+ * @returns {string}
  */
 var trim = function() {
     // native trim is way faster: http://jsperf.com/angular-trim-test
@@ -134,6 +138,74 @@ var trim = function() {
 
 
 var slice = Array.prototype.slice;
+
+/**
+ * @param {string} str
+ * @param {string} separator
+ * @param {bool} allowEmpty
+ * @returns {[]}
+ */
+var split = function(str, separator, allowEmpty) {
+
+    var l       = str.length,
+        sl      = separator.length,
+        i       = 0,
+        prev    = 0,
+        prevChar= "",
+        inQDbl  = false,
+        inQSng  = false,
+        parts   = [],
+        esc     = "\\",
+        char;
+
+    if (!sl) {
+        return [str];
+    }
+
+    for (; i < l; i++) {
+
+        char = str.charAt(i);
+
+        if (char == esc) {
+            i++;
+            continue;
+        }
+
+        if (char == '"') {
+            inQDbl = !inQDbl;
+            continue;
+        }
+        if (char == "'") {
+            inQSng = !inQSng;
+            continue;
+        }
+
+        if (!inQDbl && !inQSng) {
+            if ((sl == 1 && char == separator) ||
+                (sl > 1 && str.substring(i, i + sl) == separator)) {
+
+                if (str.substr(i - 1, sl) == separator ||
+                    str.substr(i + 1, sl) == separator) {
+
+                    if (!allowEmpty) {
+                        i += (sl - 1);
+                        continue;
+                    }
+                }
+
+                parts.push(str.substring(prev, i).replace(esc + separator, separator));
+                prev = i + sl;
+                i += (sl - 1);
+            }
+        }
+
+        prevChar = char;
+    }
+
+    parts.push(str.substring(prev).replace(esc + separator, separator));
+
+    return parts;
+};
 
 
 
@@ -219,13 +291,22 @@ function isPlainObject(value) {
 
 };
 
+var strUndef = "undefined";
 
 
-var copy = function(){
+
+var copy = function() {
+
+    var win = typeof window != strUndef ? window : null,
+        glob = typeof global != strUndef ? global : null;
 
     var copy = function copy(source, dest){
-        if (isWindow(source)) {
+
+        if (win && source === win) {
             throw new Error("Cannot copy window object");
+        }
+        if (glob && source === glob) {
+            throw new Error("Cannot copy global object");
         }
 
         if (!dest) {
@@ -295,16 +376,17 @@ function isBool(value) {
 
 
 
-/**
- * @param {Object} dst
- * @param {Object} src
- * @param {Object} src2 ... srcN
- * @param {boolean} override = false
- * @param {boolean} deep = false
- * @returns {*}
- */
+
 var extend = function(){
 
+    /**
+     * @param {Object} dst
+     * @param {Object} src
+     * @param {Object} src2 ... srcN
+     * @param {boolean} override = false
+     * @param {boolean} deep = false
+     * @returns {object}
+     */
     var extend = function extend() {
 
 
@@ -515,8 +597,6 @@ function async(fn, context, args, timeout) {
     }, timeout || 0);
 };
 
-var strUndef = "undefined";
-
 
 
 function error(e) {
@@ -543,7 +623,7 @@ function emptyFn(){};
 
 var functionFactory = function() {
 
-    var REG_REPLACE_EXPR    = /(^|[^a-z0-9_$])(\.)([^0-9])/ig,
+    var REG_REPLACE_EXPR    = /(^|[^a-z0-9_$\]\)'"])(\.)([^0-9])/ig,
 
         f               = Function,
         fnBodyStart     = 'try {',
@@ -622,6 +702,7 @@ var functionFactory = function() {
         getterCacheCnt  = 0,
 
         createGetter    = function createGetter(expr) {
+
             try {
                 if (!getterCache[expr]) {
                     getterCacheCnt++;
@@ -781,8 +862,19 @@ return function(){
 
         observable;
 
+    /**
+     * @class Watchable
+     */
 
-
+    /**
+     * @param {object} dataObj object containing observed property
+     * @param {string} code property name or custom code
+     * @param {function} fn optional listener
+     * @param {object} fnScope optional listener's "this" object
+     * @param {*} userData optional data to pass to the listener
+     * @param {Namespace} namespace optional namespace to get filters and pipes from
+     * @constructor
+     */
     var Watchable   = function(dataObj, code, fn, fnScope, userData, namespace) {
 
         if (!observable) {
@@ -830,8 +922,8 @@ return function(){
         }
 
         if (type == "expr") {
-            code        = self._processInputPipes(code, dataObj);
-            code        = self._processPipes(code, dataObj);
+            code        = self._parsePipes(code, dataObj, true);
+            code        = self._parsePipes(code, dataObj, false);
 
             if (self.inputPipes || self.pipes) {
                 code    = normalizeExpr(dataObj, code);
@@ -876,10 +968,10 @@ return function(){
             self.curr = self.prev = self.staticValue;
         }
 
-        if (useObserver) {
+        /*if (useObserver) {
             self.obsrvDelegate = bind(self.onObserverChange, self);
             Object.observe(self.obj, self.obsrvDelegate);
-        }
+        }*/
     };
 
     extend(Watchable.prototype, {
@@ -923,41 +1015,36 @@ return function(){
         },
 
 
-        _processInputPipes: function(text, dataObj) {
+        _parsePipes: function(text, dataObj, input) {
 
-            if (text.indexOf('>>') == -1) {
+            var self        = this,
+                separator   = input ? ">>" : "|",
+                propName    = input ? "inputPipes" : "pipes",
+                cb          = input ? self.onInputParamChange : self.onPipeParamChange;
+
+            if (text.indexOf(separator) == -1) {
                 return text;
             }
 
-            var self        = this,
-                index       = 0,
-                textLength  = text.length,
-                pipes       = [],
-                pIndex,
-                prev, next, pipe,
-                ret         = text;
+            var parts   = split(text, separator),
+                ret     = input ? parts.pop() : parts.shift(),
+                pipes   = [],
+                pipe,
+                i, l;
 
-            while(index < textLength && (pIndex  = text.indexOf('>>', index)) != -1) {
+            console.log(pipes)
 
-                    prev = text.charAt(pIndex -1);
-                    next = text.charAt(pIndex + 2);
-
-                    if (prev != '\\' && prev != "'" && prev != '"' && next != "'" && next != '"') {
-                        pipe = trim(text.substring(index, pIndex)).split(":");
-                        ret = text.substr(pIndex + 2);
-                        self._addPipe(pipes, pipe, dataObj, self.onInputParamChange);
-                    }
-
-                    index = pIndex + 2;
+            for(i = 0, l = parts.length; i < l; i++) {
+                pipe = split(trim(parts[i]), ':');
+                self._addPipe(pipes, pipe, dataObj, cb);
             }
 
             if (pipes.length) {
-                self.inputPipes = pipes;
+                self[propName] = pipes;
             }
 
             return trim(ret);
         },
-
 
         _addPipe: function(pipes, pipe, dataObj, onParamChange) {
 
@@ -971,8 +1058,10 @@ return function(){
                 fn      = self.nsGet("filter." + name, true);
             }
             if (!fn) {
-                fn      = window[name] || dataObj[name];
+                fn      = (typeof window != "undefined" ? window[name] : null) || dataObj[name];
             }
+
+            console.log(name, fn);
 
             if (isFunction(fn)) {
 
@@ -981,56 +1070,6 @@ return function(){
 
                 pipes.push([fn, pipe, ws]);
             }
-        },
-
-        _processPipes: function(text, dataObj) {
-
-            if (text.indexOf('|') == -1) {
-                return text;
-            }
-
-            var self        = this,
-                index       = 0,
-                textLength  = text.length,
-                pipes       = [],
-                pIndex,
-                prev, next, pipe,
-                found       = false,
-                ret         = text;
-
-            while(index < textLength) {
-
-                if ((pIndex  = text.indexOf('|', index)) != -1) {
-
-                    prev = text.charAt(pIndex -1);
-                    next = text.charAt(pIndex + 1);
-
-                    if (prev != '|' && prev != "'" && prev != '"' && next != '|' && next != "'" && next != '"') {
-                        if (!found) {
-                            found = true;
-                            ret = trim(text.substring(0, pIndex));
-                        }
-                        else {
-                            pipe = trim(text.substring(index, pIndex)).split(":");
-                            self._addPipe(pipes, pipe, dataObj);
-                        }
-                    }
-                    index = pIndex + 1;
-                }
-                else {
-                    if (found) {
-                        pipe = trim(text.substr(index)).split(":");
-                        self._addPipe(pipes, pipe, dataObj, self.onPipeParamChange);
-                    }
-                    break;
-                }
-            }
-
-            if (pipes.length) {
-                self.pipes = pipes;
-            }
-
-            return ret;
         },
 
 
@@ -1098,39 +1137,83 @@ return function(){
             return val;
         },
 
+        /**
+         * Subscribe to the change event
+         * @method
+         * @param {function} fn listener
+         * @param {object} fnScope listener's "this" object
+         * @param {object} options see Observable's options in on()
+         */
         subscribe: function(fn, fnScope, options) {
             observable.on(this.id, fn, fnScope, options);
         },
 
+        /**
+         * Unsubscribe from change event
+         * @param {function} fn
+         * @param {object} fnScope
+         * @returns {*}
+         */
         unsubscribe: function(fn, fnScope) {
             return observable.un(this.id, fn, fnScope);
         },
 
+        /**
+         * @returns {boolean}
+         */
         hasPipes: function() {
             return this.pipes !== null;
         },
 
+        /**
+         * @returns {boolean}
+         */
         hasInputPipes: function() {
             return this.inputPipes != null;
         },
 
+        /**
+         * Get current value (filtered and via executing the code)
+         * @returns {*}
+         */
         getValue: function() {
             return this._getValue();
         },
 
+        /**
+         * Get last calculated value before filters were applied
+         * @returns {*}
+         */
         getUnfilteredValue: function() {
             return this.unfiltered || this.curr;
         },
 
+        /**
+         * Get previous value
+         * @returns {*}
+         */
         getPrevValue: function() {
             return this.prev;
         },
 
+        /**
+         * Get simple array change prescription
+         * @param {[]} from optional
+         * @param {[]} to optional
+         * @returns {[]}
+         */
         getPrescription: function(from, to) {
             to = to || this._getValue();
             return levenshteinArray(from || [], to || []).prescription;
         },
 
+        /**
+         * Get array change prescription with moves
+         * @param {[]} from
+         * @param {function} trackByFn
+         * @param {[]} to
+         * @returns {[]}
+         */
         getMovePrescription: function(from, trackByFn, to) {
 
             var self    = this;
@@ -1144,6 +1227,10 @@ return function(){
             );
         },
 
+        /**
+         * Set value to observed property
+         * @param {*} val
+         */
         setValue: function(val) {
 
             var self    = this,
@@ -1222,18 +1309,35 @@ return function(){
             return false;
         },
 
+        /**
+         * Check for changes
+         * @param {bool} async
+         * @returns {bool}
+         */
         check: function(async) {
             return this._check(async);
         },
 
+        /**
+         * Check all observed properties for changes
+         * @returns {bool}
+         */
         checkAll: function() {
             return this.obj.$$watchers.$checkAll();
         },
 
+        /**
+         * Get last calculated value (with filters and pipes)
+         * @returns {*}
+         */
         getLastResult: function() {
             return this.curr;
         },
 
+        /**
+         * Set time interval to check for changes periodically
+         * @param {number} ms
+         */
         setInterval: function(ms) {
 
             var self    = this;
@@ -1243,6 +1347,10 @@ return function(){
             self.itv = setInterval(function(){self.check();}, ms);
         },
 
+        /**
+         * Clear check interval
+         * @method
+         */
         clearInterval: function() {
             var self    = this;
             if (self.itv) {
@@ -1251,6 +1359,12 @@ return function(){
             }
         },
 
+        /**
+         * Unsubscribe and destroy if there are no other listeners
+         * @param {function} fn
+         * @param {object} fnScope
+         * @returns {boolean} true if destroyed
+         */
         unsubscribeAndDestroy: function(fn, fnScope) {
 
             var self    = this,
@@ -1268,6 +1382,9 @@ return function(){
             return false;
         },
 
+        /**
+         * @method
+         */
         destroy: function() {
 
             var self    = this,
@@ -1318,6 +1435,17 @@ return function(){
     }, true, false);
 
 
+    /**
+     * @method
+     * @static
+     * @param {object} obj
+     * @param {string} code
+     * @param {function} fn
+     * @param {object} fnScope
+     * @param {*} userData
+     * @param {Namespace} namespace
+     * @returns {Watchable}
+     */
     var create = function(obj, code, fn, fnScope, userData, namespace) {
 
             code = normalizeExpr(obj, trim(code));
@@ -1371,6 +1499,14 @@ return function(){
             }
         },
 
+        /**
+         * @method
+         * @static
+         * @param {object} obj
+         * @param {string} code
+         * @param {function} fn
+         * @param {object} fnScope
+         */
         unsubscribeAndDestroy = function(obj, code, fn, fnScope) {
             code = trim(code);
 
@@ -1382,6 +1518,12 @@ return function(){
             }
         },
 
+        /**
+         * Normalize expression
+         * @param {object} dataObj
+         * @param {string} expr
+         * @returns {string}
+         */
         normalizeExpr = function(dataObj, expr) {
             if (dataObj && expr) {
                 if (dataObj.hasOwnProperty(expr)) {
@@ -1398,7 +1540,12 @@ return function(){
             return expr;
         },
 
-
+        /**
+         * Evaluate code against object
+         * @param {string} expr
+         * @param {object} scope
+         * @returns {*}
+         */
         evaluate    = function(expr, scope) {
             var val;
             if (val = isStatic(expr)) {

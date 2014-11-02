@@ -4,6 +4,7 @@ var nextUid     = require("../../metaphorjs/src/func/nextUid.js"),
     isFunction  = require("../../metaphorjs/src/func/isFunction.js"),
     trim        = require("../../metaphorjs/src/func/trim.js"),
     slice       = require("../../metaphorjs/src/func/array/slice.js"),
+    split       = require("../../metaphorjs/src/func/split.js"),
     isString    = require("../../metaphorjs/src/func/isString.js"),
     undf        = require("../../metaphorjs/src/var/undf.js"),
     equals      = require("../../metaphorjs/src/func/equals.js"),
@@ -85,8 +86,19 @@ module.exports = function(){
 
         observable;
 
+    /**
+     * @class Watchable
+     */
 
-
+    /**
+     * @param {object} dataObj object containing observed property
+     * @param {string} code property name or custom code
+     * @param {function} fn optional listener
+     * @param {object} fnScope optional listener's "this" object
+     * @param {*} userData optional data to pass to the listener
+     * @param {Namespace} namespace optional namespace to get filters and pipes from
+     * @constructor
+     */
     var Watchable   = function(dataObj, code, fn, fnScope, userData, namespace) {
 
         if (!observable) {
@@ -134,8 +146,8 @@ module.exports = function(){
         }
 
         if (type == "expr") {
-            code        = self._processInputPipes(code, dataObj);
-            code        = self._processPipes(code, dataObj);
+            code        = self._parsePipes(code, dataObj, true);
+            code        = self._parsePipes(code, dataObj, false);
 
             if (self.inputPipes || self.pipes) {
                 code    = normalizeExpr(dataObj, code);
@@ -180,10 +192,10 @@ module.exports = function(){
             self.curr = self.prev = self.staticValue;
         }
 
-        if (useObserver) {
+        /*if (useObserver) {
             self.obsrvDelegate = bind(self.onObserverChange, self);
             Object.observe(self.obj, self.obsrvDelegate);
-        }
+        }*/
     };
 
     extend(Watchable.prototype, {
@@ -227,41 +239,34 @@ module.exports = function(){
         },
 
 
-        _processInputPipes: function(text, dataObj) {
+        _parsePipes: function(text, dataObj, input) {
 
-            if (text.indexOf('>>') == -1) {
+            var self        = this,
+                separator   = input ? ">>" : "|",
+                propName    = input ? "inputPipes" : "pipes",
+                cb          = input ? self.onInputParamChange : self.onPipeParamChange;
+
+            if (text.indexOf(separator) == -1) {
                 return text;
             }
 
-            var self        = this,
-                index       = 0,
-                textLength  = text.length,
-                pipes       = [],
-                pIndex,
-                prev, next, pipe,
-                ret         = text;
+            var parts   = split(text, separator),
+                ret     = input ? parts.pop() : parts.shift(),
+                pipes   = [],
+                pipe,
+                i, l;
 
-            while(index < textLength && (pIndex  = text.indexOf('>>', index)) != -1) {
-
-                    prev = text.charAt(pIndex -1);
-                    next = text.charAt(pIndex + 2);
-
-                    if (prev != '\\' && prev != "'" && prev != '"' && next != "'" && next != '"') {
-                        pipe = trim(text.substring(index, pIndex)).split(":");
-                        ret = text.substr(pIndex + 2);
-                        self._addPipe(pipes, pipe, dataObj, self.onInputParamChange);
-                    }
-
-                    index = pIndex + 2;
+            for(i = 0, l = parts.length; i < l; i++) {
+                pipe = split(trim(parts[i]), ':');
+                self._addPipe(pipes, pipe, dataObj, cb);
             }
 
             if (pipes.length) {
-                self.inputPipes = pipes;
+                self[propName] = pipes;
             }
 
             return trim(ret);
         },
-
 
         _addPipe: function(pipes, pipe, dataObj, onParamChange) {
 
@@ -275,7 +280,7 @@ module.exports = function(){
                 fn      = self.nsGet("filter." + name, true);
             }
             if (!fn) {
-                fn      = window[name] || dataObj[name];
+                fn      = (typeof window != "undefined" ? window[name] : null) || dataObj[name];
             }
 
             if (isFunction(fn)) {
@@ -285,56 +290,6 @@ module.exports = function(){
 
                 pipes.push([fn, pipe, ws]);
             }
-        },
-
-        _processPipes: function(text, dataObj) {
-
-            if (text.indexOf('|') == -1) {
-                return text;
-            }
-
-            var self        = this,
-                index       = 0,
-                textLength  = text.length,
-                pipes       = [],
-                pIndex,
-                prev, next, pipe,
-                found       = false,
-                ret         = text;
-
-            while(index < textLength) {
-
-                if ((pIndex  = text.indexOf('|', index)) != -1) {
-
-                    prev = text.charAt(pIndex -1);
-                    next = text.charAt(pIndex + 1);
-
-                    if (prev != '|' && prev != "'" && prev != '"' && next != '|' && next != "'" && next != '"') {
-                        if (!found) {
-                            found = true;
-                            ret = trim(text.substring(0, pIndex));
-                        }
-                        else {
-                            pipe = trim(text.substring(index, pIndex)).split(":");
-                            self._addPipe(pipes, pipe, dataObj);
-                        }
-                    }
-                    index = pIndex + 1;
-                }
-                else {
-                    if (found) {
-                        pipe = trim(text.substr(index)).split(":");
-                        self._addPipe(pipes, pipe, dataObj, self.onPipeParamChange);
-                    }
-                    break;
-                }
-            }
-
-            if (pipes.length) {
-                self.pipes = pipes;
-            }
-
-            return ret;
         },
 
 
@@ -402,39 +357,83 @@ module.exports = function(){
             return val;
         },
 
+        /**
+         * Subscribe to the change event
+         * @method
+         * @param {function} fn listener
+         * @param {object} fnScope listener's "this" object
+         * @param {object} options see Observable's options in on()
+         */
         subscribe: function(fn, fnScope, options) {
             observable.on(this.id, fn, fnScope, options);
         },
 
+        /**
+         * Unsubscribe from change event
+         * @param {function} fn
+         * @param {object} fnScope
+         * @returns {*}
+         */
         unsubscribe: function(fn, fnScope) {
             return observable.un(this.id, fn, fnScope);
         },
 
+        /**
+         * @returns {boolean}
+         */
         hasPipes: function() {
             return this.pipes !== null;
         },
 
+        /**
+         * @returns {boolean}
+         */
         hasInputPipes: function() {
             return this.inputPipes != null;
         },
 
+        /**
+         * Get current value (filtered and via executing the code)
+         * @returns {*}
+         */
         getValue: function() {
             return this._getValue();
         },
 
+        /**
+         * Get last calculated value before filters were applied
+         * @returns {*}
+         */
         getUnfilteredValue: function() {
             return this.unfiltered || this.curr;
         },
 
+        /**
+         * Get previous value
+         * @returns {*}
+         */
         getPrevValue: function() {
             return this.prev;
         },
 
+        /**
+         * Get simple array change prescription
+         * @param {[]} from optional
+         * @param {[]} to optional
+         * @returns {[]}
+         */
         getPrescription: function(from, to) {
             to = to || this._getValue();
             return levenshteinArray(from || [], to || []).prescription;
         },
 
+        /**
+         * Get array change prescription with moves
+         * @param {[]} from
+         * @param {function} trackByFn
+         * @param {[]} to
+         * @returns {[]}
+         */
         getMovePrescription: function(from, trackByFn, to) {
 
             var self    = this;
@@ -448,6 +447,10 @@ module.exports = function(){
             );
         },
 
+        /**
+         * Set value to observed property
+         * @param {*} val
+         */
         setValue: function(val) {
 
             var self    = this,
@@ -526,18 +529,35 @@ module.exports = function(){
             return false;
         },
 
+        /**
+         * Check for changes
+         * @param {bool} async
+         * @returns {bool}
+         */
         check: function(async) {
             return this._check(async);
         },
 
+        /**
+         * Check all observed properties for changes
+         * @returns {bool}
+         */
         checkAll: function() {
             return this.obj.$$watchers.$checkAll();
         },
 
+        /**
+         * Get last calculated value (with filters and pipes)
+         * @returns {*}
+         */
         getLastResult: function() {
             return this.curr;
         },
 
+        /**
+         * Set time interval to check for changes periodically
+         * @param {number} ms
+         */
         setInterval: function(ms) {
 
             var self    = this;
@@ -547,6 +567,10 @@ module.exports = function(){
             self.itv = setInterval(function(){self.check();}, ms);
         },
 
+        /**
+         * Clear check interval
+         * @method
+         */
         clearInterval: function() {
             var self    = this;
             if (self.itv) {
@@ -555,6 +579,12 @@ module.exports = function(){
             }
         },
 
+        /**
+         * Unsubscribe and destroy if there are no other listeners
+         * @param {function} fn
+         * @param {object} fnScope
+         * @returns {boolean} true if destroyed
+         */
         unsubscribeAndDestroy: function(fn, fnScope) {
 
             var self    = this,
@@ -572,6 +602,9 @@ module.exports = function(){
             return false;
         },
 
+        /**
+         * @method
+         */
         destroy: function() {
 
             var self    = this,
@@ -622,6 +655,17 @@ module.exports = function(){
     }, true, false);
 
 
+    /**
+     * @method
+     * @static
+     * @param {object} obj
+     * @param {string} code
+     * @param {function} fn
+     * @param {object} fnScope
+     * @param {*} userData
+     * @param {Namespace} namespace
+     * @returns {Watchable}
+     */
     var create = function(obj, code, fn, fnScope, userData, namespace) {
 
             code = normalizeExpr(obj, trim(code));
@@ -675,6 +719,14 @@ module.exports = function(){
             }
         },
 
+        /**
+         * @method
+         * @static
+         * @param {object} obj
+         * @param {string} code
+         * @param {function} fn
+         * @param {object} fnScope
+         */
         unsubscribeAndDestroy = function(obj, code, fn, fnScope) {
             code = trim(code);
 
@@ -686,6 +738,12 @@ module.exports = function(){
             }
         },
 
+        /**
+         * Normalize expression
+         * @param {object} dataObj
+         * @param {string} expr
+         * @returns {string}
+         */
         normalizeExpr = function(dataObj, expr) {
             if (dataObj && expr) {
                 if (dataObj.hasOwnProperty(expr)) {
@@ -702,7 +760,12 @@ module.exports = function(){
             return expr;
         },
 
-
+        /**
+         * Evaluate code against object
+         * @param {string} expr
+         * @param {object} scope
+         * @returns {*}
+         */
         evaluate    = function(expr, scope) {
             var val;
             if (val = isStatic(expr)) {

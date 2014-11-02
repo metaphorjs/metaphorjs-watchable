@@ -6,7 +6,7 @@ var error = require("../../../../metaphorjs/src/func/error.js"),
 
 module.exports = function() {
 
-    var REG_REPLACE_EXPR    = /(^|[^a-z0-9_$])(\.)([^0-9])/ig,
+    var REG_REPLACE_EXPR    = /(^|[^a-z0-9_$\]\)'"])(\.)([^0-9])/ig,
 
         f               = Function,
         fnBodyStart     = 'try {',
@@ -85,6 +85,7 @@ module.exports = function() {
         getterCacheCnt  = 0,
 
         createGetter    = function createGetter(expr) {
+
             try {
                 if (!getterCache[expr]) {
                     getterCacheCnt++;
