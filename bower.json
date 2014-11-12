@@ -13,7 +13,7 @@
         "watcher"
     ],
     "license": "MIT",
-    "homepage": "https://github.com/kuindji/metaphorjs-watchable",
+    "homepage": "https://github.com/metaphorjs/metaphorjs-watchable",
     "ignore": [
         "node_modules",
         "bower_components",

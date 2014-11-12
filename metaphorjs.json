@@ -1,5 +1,8 @@
 {
     "version": "1.0.10",
+    "description": "MetaphorJs watchable - watch for changes in objects",
+
+
     "push": [
         "github"
     ],

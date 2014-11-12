@@ -140,6 +140,74 @@ var trim = function() {
 
 var slice = Array.prototype.slice;
 
+/**
+ * @param {string} str
+ * @param {string} separator
+ * @param {bool} allowEmpty
+ * @returns {[]}
+ */
+var split = function(str, separator, allowEmpty) {
+
+    var l       = str.length,
+        sl      = separator.length,
+        i       = 0,
+        prev    = 0,
+        prevChar= "",
+        inQDbl  = false,
+        inQSng  = false,
+        parts   = [],
+        esc     = "\\",
+        char;
+
+    if (!sl) {
+        return [str];
+    }
+
+    for (; i < l; i++) {
+
+        char = str.charAt(i);
+
+        if (char == esc) {
+            i++;
+            continue;
+        }
+
+        if (char == '"') {
+            inQDbl = !inQDbl;
+            continue;
+        }
+        if (char == "'") {
+            inQSng = !inQSng;
+            continue;
+        }
+
+        if (!inQDbl && !inQSng) {
+            if ((sl == 1 && char == separator) ||
+                (sl > 1 && str.substring(i, i + sl) == separator)) {
+
+                if (str.substr(i - 1, sl) == separator ||
+                    str.substr(i + 1, sl) == separator) {
+
+                    if (!allowEmpty) {
+                        i += (sl - 1);
+                        continue;
+                    }
+                }
+
+                parts.push(str.substring(prev, i).replace(esc + separator, separator));
+                prev = i + sl;
+                i += (sl - 1);
+            }
+        }
+
+        prevChar = char;
+    }
+
+    parts.push(str.substring(prev).replace(esc + separator, separator));
+
+    return parts;
+};
+
 
 
 function isDate(value) {
@@ -435,15 +503,13 @@ function returnFalse() {
  * <p>A javascript event system implementing two patterns - observable and collector.</p>
  *
  * <p>Observable:</p>
- * <pre><code class="language-javascript">
- * var o = new MetaphorJs.lib.Observable;
+ * <pre><code class="language-javascript">var o = new Observable;
  * o.on("event", function(x, y, z){ console.log([x, y, z]) });
  * o.trigger("event", 1, 2, 3); // [1, 2, 3]
  * </code></pre>
  *
  * <p>Collector:</p>
- * <pre><code class="language-javascript">
- * var o = new MetaphorJs.lib.Observable;
+ * <pre><code class="language-javascript">var o = new Observable;
  * o.createEvent("collectStuff", "all");
  * o.on("collectStuff", function(){ return 1; });
  * o.on("collectStuff", function(){ return 2; });
@@ -452,8 +518,7 @@ function returnFalse() {
  *
  * <p>Although all methods are public there is getApi() method that allows you
  * extending your own objects without overriding "destroy" (which you probably have)</p>
- * <pre><code class="language-javascript">
- * var o = new MetaphorJs.lib.Observable;
+ * <pre><code class="language-javascript">var o = new Observable;
  * $.extend(this, o.getApi());
  * this.on("event", function(){ alert("ok") });
  * this.trigger("event");
@@ -474,13 +539,11 @@ var Observable = function() {
 extend(Observable.prototype, {
 
     /**
-    * <p>You don't have to call this function unless you want to pass returnResult param.
-    * This function will be automatically called from on() with
-    * <code class="language-javascript">returnResult = false</code>,
-    * so if you want to receive handler's return values, create event first, then call on().</p>
+    * You don't have to call this function unless you want to pass returnResult param.
+    * This function will be automatically called from {@link on} with <code>returnResult = false</code>,
+    * so if you want to receive handler's return values, create event first, then call on().
     *
-    * <pre><code class="language-javascript">
-    * var observable = new MetaphorJs.lib.Observable;
+    * <pre><code class="language-javascript">var observable = new Observable;
     * observable.createEvent("collectStuff", "all");
     * observable.on("collectStuff", function(){ return 1; });
     * observable.on("collectStuff", function(){ return 2; });
@@ -499,10 +562,10 @@ extend(Observable.prototype, {
     *   "all" -- return all results as array<br>
     *   "merge" -- merge all results into one array (each result must be array)<br>
     *   "first" -- return result of the first handler<br>
-    *   "last" -- return result of the last handler
+    *   "last" -- return result of the last handler<br>
     *   @required
     * }
-    * @return MetaphorJs.lib.ObservableEvent
+    * @return {ObservableEvent}
     */
     createEvent: function(name, returnResult) {
         name = name.toLowerCase();
@@ -517,7 +580,7 @@ extend(Observable.prototype, {
     * @method
     * @access public
     * @param {string} name Event name
-    * @return MetaphorJs.lib.ObservableEvent|undefined
+    * @return {ObservableEvent|undefined}
     */
     getEvent: function(name) {
         name = name.toLowerCase();
@@ -528,7 +591,6 @@ extend(Observable.prototype, {
     * Subscribe to an event or register collector function.
     * @method
     * @access public
-    * @md-save on
     * @param {string} name {
     *       Event name
     *       @required
@@ -566,9 +628,8 @@ extend(Observable.prototype, {
     },
 
     /**
-    * Same as on(), but options.limit is forcefully set to 1.
+    * Same as {@link Observable.on}, but options.limit is forcefully set to 1.
     * @method
-    * @md-apply on
     * @access public
     */
     once: function(name, fn, context, options) {
@@ -791,7 +852,7 @@ extend(Observable.prototype, {
 
 /**
  * This class is private - you can't create an event other than via Observable.
- * See MetaphorJs.lib.Observable reference.
+ * See Observable reference.
  * @class ObservableEvent
  * @private
  */
@@ -1541,8 +1602,8 @@ var Watchable = function(){
         }
 
         if (type == "expr") {
-            code        = self._processInputPipes(code, dataObj);
-            code        = self._processPipes(code, dataObj);
+            code        = self._parsePipes(code, dataObj, true);
+            code        = self._parsePipes(code, dataObj, false);
 
             if (self.inputPipes || self.pipes) {
                 code    = normalizeExpr(dataObj, code);
@@ -1634,41 +1695,34 @@ var Watchable = function(){
         },
 
 
-        _processInputPipes: function(text, dataObj) {
+        _parsePipes: function(text, dataObj, input) {
 
-            if (text.indexOf('>>') == -1) {
+            var self        = this,
+                separator   = input ? ">>" : "|",
+                propName    = input ? "inputPipes" : "pipes",
+                cb          = input ? self.onInputParamChange : self.onPipeParamChange;
+
+            if (text.indexOf(separator) == -1) {
                 return text;
             }
 
-            var self        = this,
-                index       = 0,
-                textLength  = text.length,
-                pipes       = [],
-                pIndex,
-                prev, next, pipe,
-                ret         = text;
+            var parts   = split(text, separator),
+                ret     = input ? parts.pop() : parts.shift(),
+                pipes   = [],
+                pipe,
+                i, l;
 
-            while(index < textLength && (pIndex  = text.indexOf('>>', index)) != -1) {
-
-                    prev = text.charAt(pIndex -1);
-                    next = text.charAt(pIndex + 2);
-
-                    if (prev != '\\' && prev != "'" && prev != '"' && next != "'" && next != '"') {
-                        pipe = trim(text.substring(index, pIndex)).split(":");
-                        ret = text.substr(pIndex + 2);
-                        self._addPipe(pipes, pipe, dataObj, self.onInputParamChange);
-                    }
-
-                    index = pIndex + 2;
+            for(i = 0, l = parts.length; i < l; i++) {
+                pipe = split(trim(parts[i]), ':');
+                self._addPipe(pipes, pipe, dataObj, cb);
             }
 
             if (pipes.length) {
-                self.inputPipes = pipes;
+                self[propName] = pipes;
             }
 
             return trim(ret);
         },
-
 
         _addPipe: function(pipes, pipe, dataObj, onParamChange) {
 
@@ -1692,56 +1746,6 @@ var Watchable = function(){
 
                 pipes.push([fn, pipe, ws]);
             }
-        },
-
-        _processPipes: function(text, dataObj) {
-
-            if (text.indexOf('|') == -1) {
-                return text;
-            }
-
-            var self        = this,
-                index       = 0,
-                textLength  = text.length,
-                pipes       = [],
-                pIndex,
-                prev, next, pipe,
-                found       = false,
-                ret         = text;
-
-            while(index < textLength) {
-
-                if ((pIndex  = text.indexOf('|', index)) != -1) {
-
-                    prev = text.charAt(pIndex -1);
-                    next = text.charAt(pIndex + 1);
-
-                    if (prev != '|' && prev != "'" && prev != '"' && next != '|' && next != "'" && next != '"') {
-                        if (!found) {
-                            found = true;
-                            ret = trim(text.substring(0, pIndex));
-                        }
-                        else {
-                            pipe = trim(text.substring(index, pIndex)).split(":");
-                            self._addPipe(pipes, pipe, dataObj);
-                        }
-                    }
-                    index = pIndex + 1;
-                }
-                else {
-                    if (found) {
-                        pipe = trim(text.substr(index)).split(":");
-                        self._addPipe(pipes, pipe, dataObj, self.onPipeParamChange);
-                    }
-                    break;
-                }
-            }
-
-            if (pipes.length) {
-                self.pipes = pipes;
-            }
-
-            return ret;
         },
 
 

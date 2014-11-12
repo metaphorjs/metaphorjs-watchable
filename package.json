@@ -1,21 +1,21 @@
 {
     "name": "metaphorjs-watchable",
     "version": "1.0.10",
-    "description": "",
+    "description": "MetaphorJs watchable - watch for changes in objects",
     "main": "dist/metaphorjs.watchable.npm.js",
     "scripts": {
         "test": "mocha"
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/kuindji/metaphorjs-watchable.git"
+        "url": "https://github.com/metaphorjs/metaphorjs-watchable.git"
     },
     "author": "johann kuindji",
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/kuindji/metaphorjs-watchable/issues"
+        "url": "https://github.com/metaphorjs/metaphorjs-watchable/issues"
     },
-    "homepage": "https://github.com/kuindji/metaphorjs-watchable",
+    "homepage": "https://github.com/metaphorjs/metaphorjs-watchable",
     "dependencies": {
         "metaphorjs-observable": "*"
     }

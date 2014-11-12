@@ -1032,8 +1032,6 @@ return function(){
                 pipe,
                 i, l;
 
-            console.log(pipes)
-
             for(i = 0, l = parts.length; i < l; i++) {
                 pipe = split(trim(parts[i]), ':');
                 self._addPipe(pipes, pipe, dataObj, cb);
@@ -1060,8 +1058,6 @@ return function(){
             if (!fn) {
                 fn      = (typeof window != "undefined" ? window[name] : null) || dataObj[name];
             }
-
-            console.log(name, fn);
 
             if (isFunction(fn)) {
 
