@@ -592,7 +592,7 @@ function levenshteinArray(from, to) {
  * @param {number} timeout
  */
 function async(fn, context, args, timeout) {
-    setTimeout(function(){
+    return setTimeout(function(){
         fn.apply(context, args || []);
     }, timeout || 0);
 };
