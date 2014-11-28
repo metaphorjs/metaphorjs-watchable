@@ -1,21 +1,21 @@
 
-var nextUid     = require("../../metaphorjs/src/func/nextUid.js"),
-    isArray     = require("../../metaphorjs/src/func/isArray.js"),
-    isFunction  = require("../../metaphorjs/src/func/isFunction.js"),
-    trim        = require("../../metaphorjs/src/func/trim.js"),
-    slice       = require("../../metaphorjs/src/func/array/slice.js"),
-    split       = require("../../metaphorjs/src/func/split.js"),
-    isString    = require("../../metaphorjs/src/func/isString.js"),
-    undf        = require("../../metaphorjs/src/var/undf.js"),
-    equals      = require("../../metaphorjs/src/func/equals.js"),
-    copy        = require("../../metaphorjs/src/func/copy.js"),
-    bind        = require("../../metaphorjs/src/func/bind.js"),
-    extend      = require("../../metaphorjs/src/func/extend.js"),
-    isPrimitive = require("../../metaphorjs/src/func/isPrimitive.js"),
-    isNative    = require("../../metaphorjs/src/func/isNative.js"),
-    returnFalse = require("../../metaphorjs/src/func/returnFalse.js"),
-    Observable  = require("../../metaphorjs-observable/src/metaphorjs.observable.js"),
-    levenshteinArray   = require("../../metaphorjs/src/func/array/levenshteinArray.js"),
+var nextUid     = require("metaphorjs/src/func/nextUid.js"),
+    isArray     = require("metaphorjs/src/func/isArray.js"),
+    isFunction  = require("metaphorjs/src/func/isFunction.js"),
+    trim        = require("metaphorjs/src/func/trim.js"),
+    slice       = require("metaphorjs/src/func/array/slice.js"),
+    split       = require("metaphorjs/src/func/split.js"),
+    isString    = require("metaphorjs/src/func/isString.js"),
+    undf        = require("metaphorjs/src/var/undf.js"),
+    equals      = require("metaphorjs/src/func/equals.js"),
+    copy        = require("metaphorjs/src/func/copy.js"),
+    bind        = require("metaphorjs/src/func/bind.js"),
+    extend      = require("metaphorjs/src/func/extend.js"),
+    isPrimitive = require("metaphorjs/src/func/isPrimitive.js"),
+    isNative    = require("metaphorjs/src/func/isNative.js"),
+    returnFalse = require("metaphorjs/src/func/returnFalse.js"),
+    Observable  = require("metaphorjs-observable/src/metaphorjs.observable.js"),
+    levenshteinArray   = require("metaphorjs/src/func/array/levenshteinArray.js"),
     createGetter = require("./func/createGetter.js"),
     createSetter = require("./func/createSetter.js");
 
@@ -274,7 +274,13 @@ module.exports = function(){
                 name    = pipe.shift(),
                 fn      = null,
                 ws      = [],
+                negative= false,
                 i, l;
+
+            if (name.substr(0,1) == "!") {
+                name = name.substr(1);
+                negative = true;
+            }
 
             if (self.nsGet) {
                 fn      = self.nsGet("filter." + name, true);
@@ -288,7 +294,7 @@ module.exports = function(){
                 for (i = -1, l = pipe.length; ++i < l;
                      ws.push(create(dataObj, pipe[i], onParamChange, self, null, self.namespace))) {}
 
-                pipes.push([fn, pipe, ws]);
+                pipes.push([fn, pipe, ws, negative]);
             }
         },
 
@@ -339,10 +345,12 @@ module.exports = function(){
                     self    = this,
                     jlen    = pipes.length,
                     dataObj = self.obj,
+                    neg,
                     z, zl;
 
                 for (j = 0; j < jlen; j++) {
                     exprs   = pipes[j][1];
+                    neg     = pipes[j][3];
                     args    = [];
                     for (z = -1, zl = exprs.length; ++z < zl;
                          args.push(evaluate(exprs[z], dataObj))){}
@@ -351,6 +359,10 @@ module.exports = function(){
                     args.unshift(val);
 
                     val     = pipes[j][0].apply(null, args);
+
+                    if (neg) {
+                        val = !val;
+                    }
                 }
             }
 

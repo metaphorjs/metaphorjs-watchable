@@ -1050,7 +1050,13 @@ return function(){
                 name    = pipe.shift(),
                 fn      = null,
                 ws      = [],
+                negative= false,
                 i, l;
+
+            if (name.substr(0,1) == "!") {
+                name = name.substr(1);
+                negative = true;
+            }
 
             if (self.nsGet) {
                 fn      = self.nsGet("filter." + name, true);
@@ -1064,7 +1070,7 @@ return function(){
                 for (i = -1, l = pipe.length; ++i < l;
                      ws.push(create(dataObj, pipe[i], onParamChange, self, null, self.namespace))) {}
 
-                pipes.push([fn, pipe, ws]);
+                pipes.push([fn, pipe, ws, negative]);
             }
         },
 
@@ -1115,10 +1121,12 @@ return function(){
                     self    = this,
                     jlen    = pipes.length,
                     dataObj = self.obj,
+                    neg,
                     z, zl;
 
                 for (j = 0; j < jlen; j++) {
                     exprs   = pipes[j][1];
+                    neg     = pipes[j][3];
                     args    = [];
                     for (z = -1, zl = exprs.length; ++z < zl;
                          args.push(evaluate(exprs[z], dataObj))){}
@@ -1127,6 +1135,10 @@ return function(){
                     args.unshift(val);
 
                     val     = pipes[j][0].apply(null, args);
+
+                    if (neg) {
+                        val = !val;
+                    }
                 }
             }
 
