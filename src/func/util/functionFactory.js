@@ -1,8 +1,8 @@
 
-var error = require("../../../../metaphorjs/src/func/error.js"),
-    undf = require("../../../../metaphorjs/src/var/undf.js"),
-    emptyFn = require("../../../../metaphorjs/src/func/emptyFn.js"),
-    slice = require("../../../../metaphorjs/src/func/array/slice.js");
+var error = require("metaphorjs/src/func/error.js"),
+    undf = require("metaphorjs/src/var/undf.js"),
+    emptyFn = require("metaphorjs/src/func/emptyFn.js"),
+    slice = require("metaphorjs/src/func/array/slice.js");
 
 module.exports = function() {
 

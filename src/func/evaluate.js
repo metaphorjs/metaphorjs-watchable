@@ -1,4 +1,4 @@
 
-var Watchable = require("../metaphorjs.watchable.js");
+var Watchable = require("../lib/Watchable.js");
 
 module.exports = Watchable.eval;

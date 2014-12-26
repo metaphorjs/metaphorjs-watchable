@@ -13,7 +13,7 @@
             "target": "dist/metaphorjs.watchable.js",
             "files": [
                 [
-                    "src/metaphorjs.watchable.js",
+                    "src/lib/Watchable.js",
                     {
                         "as": "Watchable"
                     }
@@ -29,14 +29,14 @@
             "compile": false,
             "files": [
                 [
-                    "src/metaphorjs.watchable.js",
+                    "src/lib/Watchable.js",
                     {
                         "keepExports": true
                     }
                 ]
             ],
             "omit": [
-                "../metaphorjs-observable/src/metaphorjs.observable.js"
+                "metaphorjs-observable/src/lib/Observable.js"
             ],
             "require": {
                 "metaphorjs-observable": "Observable"
@@ -47,14 +47,14 @@
             "target": "dist/metaphorjs.watchable.amd.js",
             "files": [
                 [
-                    "src/metaphorjs.watchable.js",
+                    "src/lib/Watchable.js",
                     {
                         "returnExports": true
                     }
                 ]
             ],
             "omit": [
-                "../metaphorjs-observable/src/metaphorjs.observable.js"
+                "metaphorjs-observable/src/lib/Observable.js"
             ],
             "define": {
                 "name": "metaphorjs-watchable",

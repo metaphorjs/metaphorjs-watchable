@@ -14,10 +14,10 @@ var nextUid     = require("metaphorjs/src/func/nextUid.js"),
     isPrimitive = require("metaphorjs/src/func/isPrimitive.js"),
     isNative    = require("metaphorjs/src/func/isNative.js"),
     returnFalse = require("metaphorjs/src/func/returnFalse.js"),
-    Observable  = require("metaphorjs-observable/src/metaphorjs.observable.js"),
+    Observable  = require("metaphorjs-observable/src/lib/Observable.js"),
     levenshteinArray   = require("metaphorjs/src/func/array/levenshteinArray.js"),
-    createGetter = require("./func/createGetter.js"),
-    createSetter = require("./func/createSetter.js");
+    createGetter = require("./../func/createGetter.js"),
+    createSetter = require("./../func/createSetter.js");
 
 module.exports = function(){
 
