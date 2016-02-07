@@ -214,6 +214,7 @@ module.exports = function(){
         curr: null,
         currCopy: null,
         prev: null,
+        unfilteredCopy: null,
         unfiltered: null,
         pipes: null,
         inputPipes: null,
@@ -221,6 +222,13 @@ module.exports = function(){
         userData: null,
         obsrvDelegate: null,
         obsrvChanged: false,
+        forcePipes: false,
+
+        // means that pipes always return the same output given the same input.
+        // if you want to mark pipe as undeterministic - put ? before it
+        // {{ .somevalue | ?pipe }}
+        // then value will be passed through all pipes on each check.
+        deterministic: true,
 
 
         _indexArrayItems: function(a) {
@@ -274,12 +282,27 @@ module.exports = function(){
                 name    = pipe.shift(),
                 fn      = null,
                 ws      = [],
-                negative= false,
+                fchar   = name.substr(0,1),
+                opt     = {
+                    neg: false,
+                    dblneg: false,
+                    undeterm: false
+                },
                 i, l;
 
-            if (name.substr(0,1) == "!") {
-                name = name.substr(1);
-                negative = true;
+            if (name.substr(0,2) == "!!") {
+                name = name.substr(2);
+                opt.dblneg = true;
+            }
+            else {
+                if (fchar == "!") {
+                    name = name.substr(1);
+                    opt.neg = true;
+                }
+                else if (fchar == "?") {
+                    name = name.substr(1);
+                    opt.undeterm = true;
+                }
             }
 
             if (self.nsGet) {
@@ -294,13 +317,19 @@ module.exports = function(){
                 for (i = -1, l = pipe.length; ++i < l;
                      ws.push(create(dataObj, pipe[i], onParamChange, self, null, self.namespace))) {}
 
-                pipes.push([fn, pipe, ws, negative]);
+                if (fn.$undeterministic) {
+                    opt.undeterm = true;
+                }
+
+                pipes.push([fn, pipe, ws, opt]);
+
+                if (opt.undeterm) {
+                    self.deterministic = false;
+                }
             }
         },
 
-
-        _getValue: function() {
-
+        _getRawValue: function() {
             var self    = this,
                 val;
 
@@ -320,13 +349,20 @@ module.exports = function(){
                     break;
             }
 
-
             if (isArray(val)) {
                 if (!self.inputPipes) {
                     self._indexArrayItems(val);
                 }
                 val = val.slice();
             }
+
+            return val;
+        },
+
+        _getValue: function(useUnfiltered) {
+
+            var self    = this,
+                val     = useUnfiltered ? self.unfiltered : self._getRawValue();
 
             self.unfiltered = val;
 
@@ -345,12 +381,12 @@ module.exports = function(){
                     self    = this,
                     jlen    = pipes.length,
                     dataObj = self.obj,
-                    neg,
+                    opt,
                     z, zl;
 
                 for (j = 0; j < jlen; j++) {
                     exprs   = pipes[j][1];
-                    neg     = pipes[j][3];
+                    opt     = pipes[j][3];
                     args    = [];
                     for (z = -1, zl = exprs.length; ++z < zl;
                          args.push(evaluate(exprs[z], dataObj))){}
@@ -360,8 +396,11 @@ module.exports = function(){
 
                     val     = pipes[j][0].apply(null, args);
 
-                    if (neg) {
+                    if (opt.neg) {
                         val = !val;
+                    }
+                    else if (opt.dblneg) {
+                        val = !!val;
                     }
                 }
             }
@@ -426,6 +465,14 @@ module.exports = function(){
          */
         getPrevValue: function() {
             return this.prev;
+        },
+
+        /**
+         * Get last calculated value (with filters and pipes)
+         * @returns {*}
+         */
+        getLastValue: function() {
+            return this.curr;
         },
 
         /**
@@ -496,10 +543,12 @@ module.exports = function(){
         },
 
         onPipeParamChange: function(val, prev, async) {
+            this.forcePipes = true;
             this.check();
+            this.forcePipes = false;
         },
 
-        onObserverChange: function(changes) {
+        /*onObserverChange: function(changes) {
 
             var self = this,
                 code = self.code,
@@ -513,28 +562,60 @@ module.exports = function(){
                     break;
                 }
             }
-        },
+        },*/
 
         _check: function(async) {
 
             var self    = this,
-                val     = self._getValue(),
-                curr    = self.currCopy,
-                eq;
+                val;
 
-            if (self.obsrvDelegate) {
-                eq      = !self.obsrvChanged;
+            if (self.deterministic && self.pipes && !self.forcePipes) {
+                if (!self._checkUnfiltered()) {
+                    return false;
+                }
+                else {
+                    // code smell.
+                    // useUnfiltered param implies that
+                    // _checkUnfiltered has been called.
+                    val = self._getValue(true);
+                }
             }
             else {
-                eq      = equals(curr, val);
+                val     = self._getValue();
             }
+
+            var curr    = self.currCopy,
+                eq      = equals(curr, val);
+
+            //if (self.obsrvDelegate) {
+            //    eq      = !self.obsrvChanged;
+            //}
+            //else {
+            //    eq      = equals(curr, val);
+            //}
 
             if (!eq) {
                 self.curr = val;
                 self.prev = curr;
                 self.currCopy = isPrimitive(val) ? val : copy(val);
-                self.obsrvChanged = false;
+                //self.obsrvChanged = false;
                 observable.trigger(self.id, val, curr, async);
+                return true;
+            }
+
+            return false;
+        },
+
+        _checkUnfiltered: function() {
+
+            var self    = this,
+                val     = self._getRawValue(),
+                curr    = self.unfilteredCopy,
+                eq      = equals(curr, val);
+
+            if (!eq) {
+                self.unfiltered = val;
+                self.unfilteredCopy = isPrimitive(val) ? val : copy(val);
                 return true;
             }
 
@@ -647,9 +728,9 @@ module.exports = function(){
                 }
             }
 
-            if (self.obsrvDelegate) {
-                Object.unobserve(self.obj, self.obsrvDelegate);
-            }
+            //if (self.obsrvDelegate) {
+            //    Object.unobserve(self.obj, self.obsrvDelegate);
+            //}
 
             if (self.obj) {
                 //delete self.obj.$$watchers.$codes[self.origCode];
