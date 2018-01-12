@@ -3,16 +3,13 @@ var nextUid     = require("metaphorjs/src/func/nextUid.js"),
     isArray     = require("metaphorjs/src/func/isArray.js"),
     isFunction  = require("metaphorjs/src/func/isFunction.js"),
     trim        = require("metaphorjs/src/func/trim.js"),
-    slice       = require("metaphorjs/src/func/array/slice.js"),
     split       = require("metaphorjs/src/func/split.js"),
     isString    = require("metaphorjs/src/func/isString.js"),
     undf        = require("metaphorjs/src/var/undf.js"),
     equals      = require("metaphorjs/src/func/equals.js"),
     copy        = require("metaphorjs/src/func/copy.js"),
-    bind        = require("metaphorjs/src/func/bind.js"),
     extend      = require("metaphorjs/src/func/extend.js"),
     isPrimitive = require("metaphorjs/src/func/isPrimitive.js"),
-    isNative    = require("metaphorjs/src/func/isNative.js"),
     returnFalse = require("metaphorjs/src/func/returnFalse.js"),
     Observable  = require("metaphorjs-observable/src/lib/Observable.js"),
     levenshteinArray   = require("metaphorjs/src/func/array/levenshteinArray.js"),
@@ -21,9 +18,7 @@ var nextUid     = require("metaphorjs/src/func/nextUid.js"),
 
 module.exports = function(){
 
-    var nativeObserver  = Object.observe && isNative(Object.observe),
-
-        isStatic    = function(val) {
+    var isStatic    = function(val) {
 
             if (!isString(val)) {
                 return true;
@@ -95,11 +90,15 @@ module.exports = function(){
      * @param {string} code property name or custom code
      * @param {function} fn optional listener
      * @param {object} fnScope optional listener's "this" object
-     * @param {*} userData optional data to pass to the listener
-     * @param {Namespace} namespace optional namespace to get filters and pipes from
+     *  @subparam {*} userData optional data to pass to the listener
+     *  @subparam {Namespace} namespace optional namespace to get filters and pipes from
+     *  @subparam {*} mock do not calculate real values, use mock instead
+     *  @subparam {function} predefined getter fn
      * @constructor
      */
-    var Watchable   = function(dataObj, code, fn, fnScope, userData, namespace) {
+    var Watchable   = function(dataObj, code, fn, fnScope, opt) {
+
+        // userData, namespace, mock
 
         if (!observable) {
             observable  = new Observable;
@@ -107,40 +106,30 @@ module.exports = function(){
 
         var self    = this,
             id      = nextUid(),
-            type,
-            useObserver = false;
+            type;
 
-        if (namespace) {
-            self.namespace = namespace;
-            self.nsGet = namespace.get;
+        if (opt.namespace) {
+            self.namespace = opt.namespace;
+            self.nsGet = opt.namespace.get;
         }
 
+        self.mock = opt.mock;
         self.origCode = code;
 
-        if (!isString(code)) {
-            fnScope = fn;
-            fn      = code;
-            code    = null;
-            type    = "object";
+        if (opt.mock && code.indexOf(".") == -1) {
+            type = "attr";
         }
-        if (isString(dataObj)) {
-            fnScope = fn;
-            fn      = code;
-            code    = dataObj;
-            dataObj = null;
-        }
-
-        if (code && dataObj) {
+        else if (code && dataObj) {
             type    = dataObj.hasOwnProperty(code) ? "attr" : "expr";
         }
-        if (code && !dataObj) {
-            type    = "expr";
+        else if (code && !dataObj) {
+            type = "expr";
         }
 
 
         if (fn) {
             observable.on(id, fn, fnScope || this, {
-                append: [userData],
+                append: [opt.userData],
                 allowDupes: true
             });
         }
@@ -159,29 +148,15 @@ module.exports = function(){
             }
         }
 
-        self.userData   = userData;
+        self.userData   = opt.userData;
         self.code       = code;
         self.id         = id;
         self.type       = type;
         self.obj        = dataObj;
 
         if (type == "expr") {
-            self.getterFn   = createGetter(code);
+            self.getterFn   = opt.getterFn || createGetter(code);
         }
-
-        // Object.observe() doesn't work with expressions and may confuse more than help.
-        // so the only thing it does on change, it sets changed flag
-        // so that on the next digest cycle there wouldn't be any need
-        // to compare values.
-
-        // upd: still, the change event happens _after_ digest cycle
-        // so lets think some more. :(
-
-        /*if (type == "attr" && nativeObserver && !self.pipes && !self.inputPipes) {
-            self.curr   = self._getValue();
-            useObserver = isPrimitive(self.curr);
-        }
-        useObserver = false;*/
 
         if (type != "static" || self.pipes) {
             self.curr = self.curr || self._getValue();
@@ -191,11 +166,6 @@ module.exports = function(){
             self.check = returnFalse;
             self.curr = self.prev = self.staticValue;
         }
-
-        /*if (useObserver) {
-            self.obsrvDelegate = bind(self.onObserverChange, self);
-            Object.observe(self.obj, self.obsrvDelegate);
-        }*/
     };
 
     extend(Watchable.prototype, {
@@ -224,12 +194,28 @@ module.exports = function(){
         obsrvChanged: false,
         forcePipes: false,
 
+        mock: false,
+
         // means that pipes always return the same output given the same input.
         // if you want to mark pipe as undeterministic - put ? before it
         // {{ .somevalue | ?pipe }}
         // then value will be passed through all pipes on each check.
         deterministic: true,
 
+        getConfig: function() {
+            var getterFn = null;
+            if (this.type == "expr") {
+                getterFn   = createGetter(this.code, true);
+            }
+            return {
+                type: this.type,
+                code: this.origCode,
+                withoutPipes: this.code,
+                getter: getterFn,
+                hasPipes: this.pipes !== null,
+                hasInputPipes: this.inputPipes !== null
+            }
+        },
 
         _indexArrayItems: function(a) {
 
@@ -305,17 +291,22 @@ module.exports = function(){
                 }
             }
 
-            if (self.nsGet) {
-                fn      = self.nsGet("filter." + name, true);
+            if (self.mock) {
+                fn      = function(){};
             }
-            if (!fn) {
-                fn      = (typeof window != "undefined" ? window[name] : null) || dataObj[name];
+            else {
+                if (self.nsGet) {
+                    fn = self.nsGet("filter." + name, true);
+                }
+                if (!fn) {
+                    fn = (typeof window != "undefined" ? window[name] : null) || dataObj[name];
+                }
             }
 
             if (isFunction(fn)) {
 
                 for (i = -1, l = pipe.length; ++i < l;
-                     ws.push(create(dataObj, pipe[i], onParamChange, self, null, self.namespace))) {}
+                     ws.push(create(dataObj, pipe[i], onParamChange, self, null, self.namespace, self.mock))) {}
 
                 if (fn.$undeterministic) {
                     opt.undeterm = true;
@@ -332,6 +323,10 @@ module.exports = function(){
         _getRawValue: function() {
             var self    = this,
                 val;
+
+            if (self.mock) {
+                return self.mock;
+            }
 
             switch (self.type) {
                 case "static":
@@ -366,7 +361,12 @@ module.exports = function(){
 
             self.unfiltered = val;
 
-            val = self._runThroughPipes(val, self.pipes);
+            if (self.mock) {
+                val = self.mock;
+            }
+            else {
+                val = self._runThroughPipes(val, self.pipes);
+            }
 
             return val;
         },
@@ -755,13 +755,15 @@ module.exports = function(){
      * @param {string} code
      * @param {function} fn
      * @param {object} fnScope
-     * @param {*} userData
-     * @param {Namespace} namespace
+     * @param {object} opt
      * @returns {Watchable}
      */
-    var create = function(obj, code, fn, fnScope, userData, namespace) {
+    var create = function(obj, code, fn, fnScope, opt) {
 
-            code = normalizeExpr(obj, trim(code));
+            //userData, namespace, mock
+            opt = opt || {};
+            code = code || "";
+            code = normalizeExpr(obj, trim(code), opt.mock);
 
             if (obj) {
                 if (!obj.$$watchers) {
@@ -799,16 +801,18 @@ module.exports = function(){
                 }
 
                 if (obj.$$watchers.$codes[code]) {
-                    obj.$$watchers.$codes[code].subscribe(fn, fnScope, {append: [userData], allowDupes: true});
+                    obj.$$watchers.$codes[code].subscribe(fn, fnScope,
+                        {append: [opt.userData || null], allowDupes: true});
                 }
                 else {
-                    obj.$$watchers.$codes[code] = new Watchable(obj, code, fn, fnScope, userData, namespace);
+                    obj.$$watchers.$codes[code] = new Watchable(
+                        obj, code, fn, fnScope, opt);
                 }
 
                 return obj.$$watchers.$codes[code];
             }
             else {
-                return new Watchable(obj, code, fn, fnScope, userData, namespace);
+                return new Watchable(obj, code, fn, fnScope, opt);
             }
         },
 
@@ -835,9 +839,24 @@ module.exports = function(){
          * Normalize expression
          * @param {object} dataObj
          * @param {string} expr
+         * @param {*} mockMode
          * @returns {string}
          */
-        normalizeExpr = function(dataObj, expr) {
+        normalizeExpr = function(dataObj, expr, mockMode) {
+
+            // in mock mode we can't check dataObj for having
+            // a property. dataObj does not exists in this
+            // context
+            if (mockMode) {
+                var match;
+                if ((match = expr.match(/(^|this)\.([A-Z0-9_$]+)$/i)) !== null) {
+                    return match[2];
+                }
+                else {
+                    return expr;
+                }
+            }
+
             if (dataObj && expr) {
                 if (dataObj.hasOwnProperty(expr)) {
                     return expr;
@@ -845,6 +864,12 @@ module.exports = function(){
                 var prop;
                 if (expr.charAt(0) == '.') {
                     prop = expr.substr(1);
+                    if (dataObj.hasOwnProperty(prop)) {
+                        return prop;
+                    }
+                }
+                else if (expr.substr(0, 5) == "this.") {
+                    prop = expr.substr(5);
                     if (dataObj.hasOwnProperty(prop)) {
                         return prop;
                     }
@@ -873,9 +898,6 @@ module.exports = function(){
     Watchable.unsubscribeAndDestroy = unsubscribeAndDestroy;
     Watchable.normalizeExpr = normalizeExpr;
     Watchable.eval = evaluate;
-    Watchable.usesNativeObserver = function() {
-        return nativeObserver;
-    };
 
     return Watchable;
 }();
