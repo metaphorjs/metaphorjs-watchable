@@ -27,8 +27,8 @@ module.exports = function(){
             var first   = val.substr(0, 1),
                 last    = val.length - 1;
 
-            if (first == '"' || first == "'") {
-                if (val.indexOf(first, 1) == last) {
+            if (first === '"' || first === "'") {
+                if (val.indexOf(first, 1) === last) {
                     return val.substring(1, last);
                 }
             }
@@ -59,13 +59,13 @@ module.exports = function(){
 
                 action = prs[prsi];
 
-                if (action == 'D') {
+                if (action === 'D') {
                     continue;
                 }
 
                 k = getKey(a2[a2i]);
 
-                if (k != undf && used[k] !== true && (index = map1[k]) !== undf) {
+                if (k !== undf && used[k] !== true && (index = map1[k]) !== undf) {
                     newPrs.push(index);
                     used[k] = true;
                 }
@@ -116,7 +116,7 @@ module.exports = function(){
         self.mock = opt.mock;
         self.origCode = code;
 
-        if (opt.mock && code.indexOf(".") == -1) {
+        if (opt.mock && code.indexOf(".") === -1) {
             type = "attr";
         }
         else if (code && dataObj) {
@@ -134,7 +134,7 @@ module.exports = function(){
             });
         }
 
-        if (type == "expr") {
+        if (type === "expr") {
             code        = self._parsePipes(code, dataObj, true);
             code        = self._parsePipes(code, dataObj, false);
 
@@ -154,11 +154,11 @@ module.exports = function(){
         self.type       = type;
         self.obj        = dataObj;
 
-        if (type == "expr") {
+        if (type === "expr") {
             self.getterFn   = opt.getterFn || createGetter(code);
         }
 
-        if (type != "static" || self.pipes) {
+        if (type !== "static" || self.pipes) {
             self.curr = self.curr || self._getValue();
             self.currCopy = isPrimitive(self.curr) ? self.curr : copy(self.curr);
         }
@@ -204,7 +204,7 @@ module.exports = function(){
 
         getConfig: function() {
             var getterFn = null;
-            if (this.type == "expr") {
+            if (this.type === "expr") {
                 getterFn   = createGetter(this.code, true);
             }
             return {
@@ -240,7 +240,7 @@ module.exports = function(){
                 propName    = input ? "inputPipes" : "pipes",
                 cb          = input ? self.onInputParamChange : self.onPipeParamChange;
 
-            if (text.indexOf(separator) == -1) {
+            if (text.indexOf(separator) === -1) {
                 return text;
             }
 
@@ -276,16 +276,16 @@ module.exports = function(){
                 },
                 i, l;
 
-            if (name.substr(0,2) == "!!") {
+            if (name.substr(0,2) === "!!") {
                 name = name.substr(2);
                 opt.dblneg = true;
             }
             else {
-                if (fchar == "!") {
+                if (fchar === "!") {
                     name = name.substr(1);
                     opt.neg = true;
                 }
-                else if (fchar == "?") {
+                else if (fchar === "?") {
                     name = name.substr(1);
                     opt.undeterm = true;
                 }
@@ -299,9 +299,11 @@ module.exports = function(){
                     fn = self.nsGet("filter." + name, true);
                 }
                 if (!fn) {
-                    fn = (typeof window != "undefined" ? window[name] : null) || dataObj[name];
+                    fn = (typeof window !== "undefined" ? window[name] : null) || dataObj[name];
                 }
             }
+
+            //console.log(!!self.nsGet, name, fn)
 
             if (isFunction(fn)) {
 
@@ -519,10 +521,10 @@ module.exports = function(){
 
             val = self._runThroughPipes(val, self.inputPipes);
 
-            if (type == "attr") {
+            if (type === "attr") {
                 self.obj[self.code] = val;
             }
-            else if (type == "expr") {
+            else if (type === "expr") {
 
                 if (!self.setterFn) {
                     self.setterFn   = createSetter(self.code);
@@ -530,7 +532,7 @@ module.exports = function(){
 
                 self.setterFn(self.obj, val);
             }
-            else if (type == "object") {
+            else if (type === "object") {
                 self.obj = val;
             }
         },
@@ -862,13 +864,13 @@ module.exports = function(){
                     return expr;
                 }
                 var prop;
-                if (expr.charAt(0) == '.') {
+                if (expr.charAt(0) === '.') {
                     prop = expr.substr(1);
                     if (dataObj.hasOwnProperty(prop)) {
                         return prop;
                     }
                 }
-                else if (expr.substr(0, 5) == "this.") {
+                else if (expr.substr(0, 5) === "this.") {
                     prop = expr.substr(5);
                     if (dataObj.hasOwnProperty(prop)) {
                         return prop;
