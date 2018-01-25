@@ -886,12 +886,18 @@ module.exports = function(){
          * @param {object} scope
          * @returns {*}
          */
-        evaluate    = function(expr, scope) {
+        evaluate    = function(expr, scope, opt) {
             var val;
             if (val = isStatic(expr)) {
                 return val;
             }
-            return createGetter(expr)(scope);
+            if (expr.indexOf('|') === -1) {
+                return createGetter(expr)(scope);
+            }
+            var w = create(scope, expr, null, null, opt),
+                v = w.getValue();
+            w.unsubscribeAndDestroy();
+            return v;
         };
 
 
