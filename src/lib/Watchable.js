@@ -91,14 +91,13 @@ module.exports = function(){
      * @param {function} fn optional listener
      * @param {object} fnScope optional listener's "this" object
      *  @subparam {*} userData optional data to pass to the listener
-     *  @subparam {Namespace} namespace optional namespace to get filters and pipes from
+     *  @subparam {function} filterLookup
      *  @subparam {*} mock do not calculate real values, use mock instead
      *  @subparam {function} predefined getter fn
+     * @param {object} opt
      * @constructor
      */
     var Watchable   = function(dataObj, code, fn, fnScope, opt) {
-
-        // userData, namespace, mock
 
         if (!observable) {
             observable  = new Observable;
@@ -108,10 +107,14 @@ module.exports = function(){
             id      = nextUid(),
             type;
 
-        if (opt.namespace) {
+        if (opt.filterLookup) {
+            self.filterLookup = opt.filterLookup;
+        }
+
+        /*if (opt.namespace) {
             self.namespace = opt.namespace;
             self.nsGet = opt.namespace.get;
-        }
+        }*/
 
         self.mock = opt.mock;
         self.origCode = code;
@@ -170,8 +173,11 @@ module.exports = function(){
 
     extend(Watchable.prototype, {
 
-        namespace: null,
-        nsGet: null,
+        //namespace: null,
+        //nsGet: null,
+
+        filterLookup: null,
+
         staticValue: null,
         origCode: null,
         code: null,
@@ -295,8 +301,9 @@ module.exports = function(){
                 fn      = function(){};
             }
             else {
-                if (self.nsGet) {
-                    fn = self.nsGet("filter." + name, true);
+                if (self.filterLookup) {
+                    fn = self.filterLookup(name);
+                    //fn = self.nsGet("filter." + name, true);
                 }
                 if (!fn) {
                     fn = (typeof window !== "undefined" ? window[name] : null) || dataObj[name];
@@ -308,7 +315,16 @@ module.exports = function(){
             if (isFunction(fn)) {
 
                 for (i = -1, l = pipe.length; ++i < l;
-                     ws.push(create(dataObj, pipe[i], onParamChange, self, null, self.namespace, self.mock))) {}
+                     ws.push(create(
+                         dataObj,
+                         pipe[i],
+                         onParamChange,
+                         self,
+                         {
+                             filterLookup: self.filterLookup,
+                             mock: self.mock
+                         }
+                     ))) {}
 
                 if (fn.$undeterministic) {
                     opt.undeterm = true;
@@ -762,7 +778,6 @@ module.exports = function(){
      */
     var create = function(obj, code, fn, fnScope, opt) {
 
-            //userData, namespace, mock
             opt = opt || {};
             code = code || "";
             code = normalizeExpr(obj, trim(code), opt.mock);
@@ -846,6 +861,10 @@ module.exports = function(){
          */
         normalizeExpr = function(dataObj, expr, mockMode) {
 
+            if (expr.substr(0, 2) === '{{') {
+                expr = expr.substring(2, expr.length - 2);
+            }
+
             // in mock mode we can't check dataObj for having
             // a property. dataObj does not exists in this
             // context
@@ -884,6 +903,7 @@ module.exports = function(){
          * Evaluate code against object
          * @param {string} expr
          * @param {object} scope
+         * @param {object} opt
          * @returns {*}
          */
         evaluate    = function(expr, scope, opt) {
