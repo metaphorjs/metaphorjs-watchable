@@ -1,6 +1,7 @@
 
 var nextUid     = require("metaphorjs/src/func/nextUid.js"),
     isArray     = require("metaphorjs/src/func/isArray.js"),
+    toArray     = require("metaphorjs/src/func/array/toArray.js"),
     isFunction  = require("metaphorjs/src/func/isFunction.js"),
     trim        = require("metaphorjs/src/func/trim.js"),
     split       = require("metaphorjs/src/func/split.js"),
@@ -103,6 +104,8 @@ module.exports = function(){
             observable  = new Observable;
         }
 
+        opt = opt || {};
+
         var self    = this,
             id      = nextUid(),
             type;
@@ -110,11 +113,6 @@ module.exports = function(){
         if (opt.filterLookup) {
             self.filterLookup = opt.filterLookup;
         }
-
-        /*if (opt.namespace) {
-            self.namespace = opt.namespace;
-            self.nsGet = opt.namespace.get;
-        }*/
 
         self.mock = opt.mock;
         self.origCode = code;
@@ -258,7 +256,7 @@ module.exports = function(){
 
             for(i = 0, l = parts.length; i < l; i++) {
                 pipe = split(trim(parts[i]), ':');
-                self._addPipe(pipes, pipe, dataObj, cb);
+                self._addPipe(pipes, pipe, dataObj, cb, false);
             }
 
             if (pipes.length) {
@@ -268,42 +266,89 @@ module.exports = function(){
             return trim(ret);
         },
 
-        _addPipe: function(pipes, pipe, dataObj, onParamChange) {
+        prependInuptPipe: function() {
+            this.inputPipes = this.inputPipes || [];
+            this._addPipe(
+                this.inputPipes,
+                toArray(arguments),
+                this.obj,
+                this.onInputParamChange,
+                true
+            );
+        },
+        addInuptPipe: function() {
+            this.inputPipes = this.inputPipes || [];
+            this._addPipe(
+                this.inputPipes,
+                toArray(arguments),
+                this.obj,
+                this.onInputParamChange,
+                false
+            );
+        },
+
+        addPipe: function() {
+            this.pipes = this.pipes || [];
+            this._addPipe(
+                this.pipes,
+                toArray(arguments),
+                this.obj,
+                this.onPipeParamChange,
+                false
+            );
+        },
+        prependPipe: function() {
+            this.pipes = this.pipes || [];
+            this._addPipe(
+                this.pipes,
+                toArray(arguments),
+                this.obj,
+                this.onPipeParamChange,
+                true
+            );
+        },
+
+        _addPipe: function(pipes, pipe, dataObj, onParamChange, prepend) {
 
             var self    = this,
                 name    = pipe.shift(),
-                fn      = null,
+                fn      = isFunction(name) ? name : null,
                 ws      = [],
-                fchar   = name.substr(0,1),
+                fchar   = fn ? null : name.substr(0,1),
                 opt     = {
                     neg: false,
                     dblneg: false,
-                    undeterm: false
+                    undeterm: false,
+                    name: name
                 },
                 i, l;
 
-            if (name.substr(0,2) === "!!") {
-                name = name.substr(2);
-                opt.dblneg = true;
+            if (!fn) {
+                if (name.substr(0, 2) === "!!") {
+                    name = name.substr(2);
+                    opt.dblneg = true;
+                }
+                else {
+                    if (fchar === "!") {
+                        name = name.substr(1);
+                        opt.neg = true;
+                    }
+                    else if (fchar === "?") {
+                        name = name.substr(1);
+                        opt.undeterm = true;
+                    }
+                }
             }
             else {
-                if (fchar === "!") {
-                    name = name.substr(1);
-                    opt.neg = true;
-                }
-                else if (fchar === "?") {
-                    name = name.substr(1);
-                    opt.undeterm = true;
-                }
+                opt.name = fn.name;
             }
 
             if (self.mock) {
                 fn      = function(){};
             }
             else {
-                if (self.filterLookup) {
+                if (!fn && self.filterLookup) {
                     fn = self.filterLookup(name);
-                    //fn = self.nsGet("filter." + name, true);
                 }
                 if (!fn) {
                     fn = (typeof window !== "undefined" ? window[name] : null) || dataObj[name];
@@ -330,7 +375,7 @@ module.exports = function(){
                     opt.undeterm = true;
                 }
 
-                pipes.push([fn, pipe, ws, opt]);
+                pipes[prepend?"unshift":"push"]([fn, pipe, ws, opt]);
 
                 if (opt.undeterm) {
                     self.deterministic = false;
@@ -459,6 +504,41 @@ module.exports = function(){
          */
         hasInputPipes: function() {
             return this.inputPipes != null;
+        },
+
+        /**
+         * @param {function|string} p
+         * @returns {boolean}
+         */
+        hasPipe: function(p) {
+            return this._hasPipe(this.pipes, p);
+        },
+
+        /**
+         * @param {function|string} p
+         * @returns {boolean}
+         */
+        hasInputPipe: function(p) {
+            return this._hasPipe(this.inputPipes, p);
+        },
+
+        /**
+         * @param {array} pipes
+         * @param {function|string} p
+         * @returns {boolean}
+         */
+        _hasPipe: function(pipes, p) {
+            if (!pipes) {
+                return false;
+            }
+            var i, l, name;
+            name = isFunction(p) ? p.name : p;
+            for (i = 0, l = pipes.length; i < l; i++) {
+                if (pipes[i][3].name === name) {
+                    return true;
+                }
+            }
+            return false;
         },
 
         /**
@@ -780,6 +860,7 @@ module.exports = function(){
 
             opt = opt || {};
             code = code || "";
+
             code = normalizeExpr(obj, trim(code), opt.mock);
 
             if (obj) {
