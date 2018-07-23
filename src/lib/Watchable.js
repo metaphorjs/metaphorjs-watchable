@@ -780,6 +780,10 @@ module.exports = function(){
 
             var self    = this,
                 id      = self.id;
+            
+            if (!id) {
+                return false;
+            }
 
             if (fn) {
                 observable.un(id, fn, fnScope);

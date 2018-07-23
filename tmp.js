@@ -1,5 +1,5 @@
 
-var equals = require("../metaphorjs/src/func/equals.js");
+var equals = require("metaphorjs/src/func/equals.js");
 
 var levenshteinArray = function(S1, S2) {
 
