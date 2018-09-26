@@ -790,7 +790,7 @@ module.exports = function(){
             }
 
             if (!observable.hasListener(id)) {
-                self.destroy();
+                self.$destroy();
                 return true;
             }
 
@@ -800,7 +800,7 @@ module.exports = function(){
         /**
          * @method
          */
-        destroy: function() {
+        $destroy: function() {
 
             var self    = this,
                 pipes   = self.pipes,
@@ -893,7 +893,7 @@ module.exports = function(){
 
                             for (i in ws) {
                                 if (ws[i]) {
-                                    ws[i].destroy();
+                                    ws[i].$destroy();
                                     //delete ws[i];
                                     ws[i] = null;
                                 }

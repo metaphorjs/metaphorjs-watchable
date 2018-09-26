@@ -1,4 +1,7 @@
-var Observable = require('metaphorjs-observable');
+/* BUNDLE START 003 */
+"use strict";
+
+var Observable = require("metaphorjs-observable");
 
 
 var nextUid = function(){
@@ -53,7 +56,7 @@ var varType = function(){
     };
 
 
-    /**
+    /*
      * 'string': 0,
      * 'number': 1,
      * 'boolean': 2,
@@ -69,6 +72,9 @@ var varType = function(){
      * @param {*} value
      * @returns {number}
      */
+
+
+
     return function varType(val) {
 
         if (!val) {
@@ -86,7 +92,7 @@ var varType = function(){
             return -1;
         }
 
-        if (num == 1 && isNaN(val)) {
+        if (num === 1 && isNaN(val)) {
             return 8;
         }
 
@@ -102,7 +108,26 @@ var varType = function(){
  * @returns {boolean}
  */
 function isArray(value) {
-    return typeof value == "object" && varType(value) === 5;
+    return typeof value === "object" && varType(value) === 5;
+};
+
+
+
+/**
+ * @param {*} list
+ * @returns {[]}
+ */
+function toArray(list) {
+    if (list && !list.length != undf && list !== ""+list) {
+        for(var a = [], i =- 1, l = list.length>>>0; ++i !== l; a[i] = list[i]){}
+        return a;
+    }
+    else if (list) {
+        return [list];
+    }
+    else {
+        return [];
+    }
 };
 
 function isFunction(value) {
@@ -135,9 +160,6 @@ var trim = function() {
         return isString(value) ? value.trim() : value;
     };
 }();
-
-
-var slice = Array.prototype.slice;
 
 /**
  * @param {string} str
@@ -354,21 +376,8 @@ var copy = function() {
     return copy;
 }();
 
-/**
- * @param {Function} fn
- * @param {*} context
- */
-var bind = Function.prototype.bind ?
-              function(fn, context){
-                  return fn.bind(context);
-              } :
-              function(fn, context) {
-                  return function() {
-                      return fn.apply(context, arguments);
-                  };
-              };
 
-
+var slice = Array.prototype.slice;
 
 function isBool(value) {
     return value === true || value === false;
@@ -451,49 +460,522 @@ function isPrimitive(value) {
     var vt = varType(value);
     return vt < 3 && vt > -1;
 };
-// https://gist.github.com/jdalton/5e34d890105aca44399f
-
-var isNative = function() {
-
-    // Used to resolve the internal `[[Class]]` of values.
-    var toString = Object.prototype.toString;
-
-    // Used to resolve the decompiled source of functions.
-    var fnToString = Function.prototype.toString;
-
-    // Used to detect host constructors (Safari > 4; really typed array specific).
-    var reHostCtor = /^\[object .+?Constructor\]$/;
-
-    // Compile a regexp using a common native method as a template.
-    // We chose `Object#toString` because there's a good chance it is not being mucked with.
-    var reNative = RegExp('^' +
-                          // Coerce `Object#toString` to a string.
-                          String(toString)
-                              // Escape any special regexp characters.
-                              .replace(/[.*+?^${}()|[\]\/\\]/g, '\\$&')
-                              // Replace mentions of `toString` with `.*?` to keep the template generic.
-                              // Replace thing like `for ...` to support environments, like Rhino, which add extra
-                              // info such as method arity.
-                              .replace(/toString|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
-    );
-
-    return function isNative(value) {
-        var type = typeof value;
-        return type == 'function'
-            // Use `Function#toString` to bypass the value's own `toString` method
-            // and avoid being faked out.
-            ? (!('prototype' in value) || reNative.test(fnToString.call(value)))
-            // Fallback to a host object check because some environments will represent
-            // things like typed arrays as DOM methods which may not conform to the
-            // normal native pattern.
-            : (value && type == 'object' && reHostCtor.test(toString.call(value))) || false;
-    };
-
-}();
 
 function returnFalse() {
     return false;
 };
+
+/**
+ * @param {Function} fn
+ * @param {*} context
+ */
+var bind = Function.prototype.bind ?
+              function(fn, context){
+                  return fn.bind(context);
+              } :
+              function(fn, context) {
+                  return function() {
+                      return fn.apply(context, arguments);
+                  };
+              };
+
+
+/**
+ * @param {Function} fn
+ * @param {Object} context
+ * @param {[]} args
+ * @param {number} timeout
+ */
+function async(fn, context, args, timeout) {
+    return setTimeout(function(){
+        fn.apply(context, args || []);
+    }, timeout || 0);
+};
+
+
+
+
+/**
+ * This class is private - you can't create an event other than via Observable.
+ * See {@link class:Observable} reference.
+ * @class ObservableEvent
+ * @private
+ */
+var ObservableEvent = function(name, options) {
+
+    var self    = this;
+
+    self.name           = name;
+    self.listeners      = [];
+    self.map            = {};
+    self.hash           = nextUid();
+    self.uni            = '$$' + name + '_' + self.hash;
+    self.suspended      = false;
+    self.lid            = 0;
+
+    if (typeof options === "object" && options !== null) {
+        extend(self, options, true, false);
+    }
+    else {
+        self.returnResult = options;
+    }
+};
+
+
+extend(ObservableEvent.prototype, {
+
+    name: null,
+    listeners: null,
+    map: null,
+    hash: null,
+    uni: null,
+    suspended: false,
+    lid: null,
+    returnResult: null,
+    autoTrigger: null,
+    lastTrigger: null,
+    triggerFilter: null,
+    filterContext: null,
+    expectPromises: false,
+    resolvePromises: false,
+
+    /**
+     * Get event name
+     * @method
+     * @returns {string}
+     */
+    getName: function() {
+        return this.name;
+    },
+
+    /**
+     * @method
+     */
+    destroy: function() {
+        var self        = this,
+            k;
+
+        for (k in self) {
+            self[k] = null;
+        }
+    },
+
+    /**
+     * @method
+     * @param {function} fn Callback function { @required }
+     * @param {object} context Function's "this" object
+     * @param {object} options See {@link class:Observable.on}
+     */
+    on: function(fn, context, options) {
+
+        if (!fn) {
+            return null;
+        }
+
+        context     = context || null;
+        options     = options || {};
+
+        var self        = this,
+            uni         = self.uni,
+            uniContext  = fn || context;
+
+        if (uniContext[uni] && !options.allowDupes) {
+            return null;
+        }
+
+        var id      = ++self.lid,
+            first   = options.first || false;
+
+        uniContext[uni]  = id;
+
+        var e = {
+            fn:         fn,
+            context:    context,
+            uniContext: uniContext,
+            id:         id,
+            async:      false,
+            called:     0, // how many times the function was triggered
+            limit:      0, // how many times the function is allowed to trigger
+            start:      1, // from which attempt it is allowed to trigger the function
+            count:      0, // how many attempts to trigger the function was made
+            append:     null, // append parameters
+            prepend:    null // prepend parameters
+        };
+
+        extend(e, options, true, false);
+
+        if (e.async === true) {
+            e.async = 1;
+        }
+
+        if (first) {
+            self.listeners.unshift(e);
+        }
+        else {
+            self.listeners.push(e);
+        }
+
+        self.map[id] = e;
+
+        if (self.autoTrigger && self.lastTrigger && !self.suspended) {
+            var prevFilter = self.triggerFilter;
+            self.triggerFilter = function(l){
+                if (l.id === id) {
+                    return prevFilter ? prevFilter(l) !== false : true;
+                }
+                return false;
+            };
+            self.trigger.apply(self, self.lastTrigger);
+            self.triggerFilter = prevFilter;
+        }
+
+        return id;
+    },
+
+    /**
+     * @method
+     * @param {function} fn Callback function { @required }
+     * @param {object} context Function's "this" object
+     * @param {object} options See {@link class:Observable.on}
+     */
+    once: function(fn, context, options) {
+
+        options = options || {};
+        options.limit = 1;
+
+        return this.on(fn, context, options);
+    },
+
+    /**
+     * @method
+     * @param {function} fn Callback function { @required }
+     * @param {object} context Callback context
+     */
+    un: function(fn, context) {
+
+        var self        = this,
+            inx         = -1,
+            uni         = self.uni,
+            listeners   = self.listeners,
+            id;
+
+        if (fn == parseInt(fn)) {
+            id      = parseInt(fn);
+        }
+        else {
+            context = context || fn;
+            id      = context[uni];
+        }
+
+        if (!id) {
+            return false;
+        }
+
+        for (var i = 0, len = listeners.length; i < len; i++) {
+            if (listeners[i].id === id) {
+                inx = i;
+                delete listeners[i].uniContext[uni];
+                break;
+            }
+        }
+
+        if (inx === -1) {
+            return false;
+        }
+
+        listeners.splice(inx, 1);
+        delete self.map[id];
+        return true;
+    },
+
+    /**
+     * @method hasListener
+     * @return bool
+     */
+
+    /**
+     * @method
+     * @param {function} fn Callback function { @required }
+     * @param {object} context Callback context
+     * @return boolean
+     */
+    hasListener: function(fn, context) {
+
+        var self    = this,
+            listeners   = self.listeners,
+            id;
+
+        if (fn) {
+
+            context = context || fn;
+
+            if (!isFunction(fn)) {
+                id  = parseInt(fn);
+            }
+            else {
+                id  = context[self.uni];
+            }
+
+            if (!id) {
+                return false;
+            }
+
+            for (var i = 0, len = listeners.length; i < len; i++) {
+                if (listeners[i].id === id) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        else {
+            return listeners.length > 0;
+        }
+    },
+
+
+    /**
+     * @method
+     */
+    removeAllListeners: function() {
+        var self    = this,
+            listeners = self.listeners,
+            uni     = self.uni,
+            i, len;
+
+        for (i = 0, len = listeners.length; i < len; i++) {
+            delete listeners[i].uniContext[uni];
+        }
+        self.listeners   = [];
+        self.map         = {};
+    },
+
+    /**
+     * @method
+     */
+    suspend: function() {
+        this.suspended = true;
+    },
+
+    /**
+     * @method
+     */
+    resume: function() {
+        this.suspended = false;
+    },
+
+
+    _prepareArgs: function(l, triggerArgs) {
+        var args;
+
+        if (l.append || l.prepend) {
+            args    = slice.call(triggerArgs);
+            if (l.prepend) {
+                args    = l.prepend.concat(args);
+            }
+            if (l.append) {
+                args    = args.concat(l.append);
+            }
+        }
+        else {
+            args = triggerArgs;
+        }
+
+        return args;
+    },
+
+    /**
+     * @method
+     * @return {*}
+     */
+    trigger: function() {
+
+        var self            = this,
+            listeners       = self.listeners,
+            rr              = self.returnResult,
+            filter          = self.triggerFilter,
+            filterContext   = self.filterContext,
+            expectPromises  = self.expectPromises,
+            results         = [],
+            prevPromise,
+            resPromise,
+            args, 
+            resolver;
+
+        if (self.suspended) {
+            return null;
+        }
+
+        if (self.autoTrigger) {
+            self.lastTrigger = slice.call(arguments);
+        }
+
+        if (listeners.length === 0) {
+            return null;
+        }
+
+        var ret     = rr === "all" || rr === "concat" ?
+                        [] : 
+                        (rr === "merge" ? {} : null),
+            q, l,
+            res;
+
+        if (rr === "first") {
+            q = [listeners[0]];
+        }
+        else {
+            // create a snapshot of listeners list
+            q = slice.call(listeners);
+        }
+
+        // now if during triggering someone unsubscribes
+        // we won't skip any listener due to shifted
+        // index
+        while (l = q.shift()) {
+
+            // listener may already have unsubscribed
+            if (!l || !self.map[l.id]) {
+                continue;
+            }
+
+            args = self._prepareArgs(l, arguments);
+
+            if (filter && filter.call(filterContext, l, args, self) === false) {
+                continue;
+            }
+
+            if (l.filter && l.filter.apply(l.filterContext || l.context, args) === false) {
+                continue;
+            }
+
+            l.count++;
+
+            if (l.count < l.start) {
+                continue;
+            }
+
+            if (l.async && !expectPromises) {
+                res = null;
+                async(l.fn, l.context, args, l.async);
+            }
+            else {
+                if (expectPromises) {
+                    resolver = function(l, rr, args){
+                        return function(value) {
+
+                            if (rr === "pipe") {
+                                args[0] = value;
+                                args = self._prepareArgs(l, args);
+                            }
+                            
+                            return l.fn.apply(l.context, args);
+                        }
+                    }(l, rr, slice.call(arguments));
+
+                    if (prevPromise) {
+                        res = prevPromise.then(resolver);
+                    }
+                    else {
+                        res = l.fn.apply(l.context, args);
+                    }
+
+                    res.catch(function(err){
+                        console.log(err);
+                    });
+                }
+                else {
+                    res = l.fn.apply(l.context, args);
+                }
+            }
+
+            l.called++;
+
+            if (l.called === l.limit) {
+                self.un(l.id);
+            }
+
+            // This rule is valid in all cases sync and async.
+            // It either returns first value or first promise.
+            if (rr === "first") {
+                return res;
+            }
+        
+            // Promise branch
+            if (expectPromises) {
+            
+                // we collect all results for further processing/resolving
+                results.push(res);
+
+                if (rr === "pipe" && res) {
+                    prevPromise = res;
+                }
+            }
+            else {
+                if (rr !== null) {
+                    if (rr === "all") {
+                        ret.push(res);
+                    }
+                    else if (rr === "concat" && res) {
+                        ret = ret.concat(res);
+                    }
+                    else if (rr === "merge") {
+                        extend(ret, res, true, false);
+                    }
+                    else if (rr === "nonempty" && res) {
+                        return res;
+                    }
+                    else if (rr === "pipe") {
+                        ret = res;
+                        arguments[0] = res;
+                    }
+                    else if (rr === "last") {
+                        ret = res;
+                    }
+                    else if (rr === false && res === false) {
+                        return false;
+                    }
+                    else if (rr === true && res === true) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        if (expectPromises) {
+            resPromise = Promise.all(results);
+            if (self.resolvePromises && rr !== null && rr !== "all") {
+                resPromise = resPromise.then(function(values){
+                    var i, l = values.length, res;
+                    for(i = 0; i < l; i++) {
+                        res = values[i];
+                        if (rr === "concat" && res) {
+                            ret = ret.concat(res);
+                        }
+                        else if (rr === "merge") {
+                            extend(ret, res, true, false);
+                        }
+                        else if (rr === "nonempty" && res) {
+                            return res;
+                        }
+                        else if (rr === false && res === false) {
+                            return false;
+                        }
+                        else if (rr === true && res === true) {
+                            return true;
+                        }
+                    }
+                    return ret;
+                });
+            }
+            return resPromise;
+        }
+        else return ret;
+    }
+}, true, false);
+
+
+
+
 
 
 
@@ -586,17 +1068,6 @@ function levenshteinArray(from, to) {
         prescription: route.reverse()
     };
 };
-/**
- * @param {Function} fn
- * @param {Object} context
- * @param {[]} args
- * @param {number} timeout
- */
-function async(fn, context, args, timeout) {
-    return setTimeout(function(){
-        fn.apply(context, args || []);
-    }, timeout || 0);
-};
 
 
 
@@ -609,18 +1080,22 @@ var error = (function(){
         var i, l;
 
         for (i = 0, l = listeners.length; i < l; i++) {
-            listeners[i][0].call(listeners[i][1], e);
+            if (listeners[i][0].call(listeners[i][1], e) === false) {
+                return;
+            }
         }
 
-        var stack = e.stack || (new Error).stack;
+        var stack = (e ? e.stack : null) || (new Error).stack;
 
-        if (typeof console != strUndef && console.log) {
-            async(function(){
-                console.log(e);
-                if (stack) {
-                    console.log(stack);
+        if (typeof console != strUndef && console.error) {
+            //async(function(){
+                if (e) {
+                    console.error(e);
                 }
-            });
+                if (stack) {
+                    console.error(stack);
+                }
+            //});
         }
         else {
             throw e;
@@ -654,98 +1129,39 @@ function emptyFn(){};
 
 var functionFactory = function() {
 
-    var REG_REPLACE_EXPR    = /(^|[^a-z0-9_$\]\)'"])(\.)([^0-9])/ig,
+    var REG_REPLACE_EXPR    = /((^|[^a-z0-9_$\]\)'"])|(this))(\.)([^0-9])/ig,
+        REG_REPLACER        = "$2____.$5",
 
         f               = Function,
         fnBodyStart     = 'try {',
-        //getterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____); }',
-        //setterBodyEnd   = ';} catch (thrownError) { return $$interceptor(thrownError, $$itself, ____, $$$$); }',
         getterBodyEnd   = ';} catch (thrownError) { return undefined; }',
         setterBodyEnd   = ';} catch (thrownError) { return undefined; }',
-
-
-        /*interceptor     = function(thrownError, func, scope, value) {
-
-            while (scope && !scope.$isRoot) {
-
-                scope = scope.$parent;
-
-                if (scope) {
-
-                    try {
-                        if (arguments.length == 4) {
-                            return func.call(null, scope, value, emptyFn, func);
-                        }
-                        else {
-                            return func.call(null, scope, emptyFn, func);
-                        }
-                    }
-                    catch (newError) {}
-                }
-            }
-
-            if (thrownError !== null) {
-                error(thrownError);
-            }
-
-            return undf;
-        },*/
-
-        isFailed        = function(val) {
-            return val === undf || (typeof val == "number" && isNaN(val));
-        },
-
-        wrapFunc        = function(func, returnsValue) {
-            return function(scope) {
-                var args = slice.call(arguments),
-                    val;
-
-                //args.push(interceptor);
-                args.push(null);
-                args.push(func);
-
-                val = func.apply(null, args);
-                return isFailed(val) ? undf : val;
-
-                /*if (returnsValue) {
-                    val = func.apply(null, args);
-                    while (isFailed(val) && !scope.$isRoot) {
-                        scope = scope.$parent;
-                        args[0] = scope;
-                        val = func.apply(null, args);
-                    }
-                    return val;
-                }
-                else {
-                    return func.apply(null, args);
-                }*/
-
-                /*if (returnsValue && isFailed(val)) {//) {
-                    args = slice.call(arguments);
-                    args.unshift(func);
-                    args.unshift(null);
-                    return interceptor.apply(null, args);
-                }
-                else {
-                    return val;
-                }*/
-            };
-        },
 
         getterCache     = {},
         getterCacheCnt  = 0,
 
-        createGetter    = function createGetter(expr) {
+        createGetter    = function createGetter(expr, returnAsCode) {
 
             try {
-                if (!getterCache[expr]) {
+                if (!getterCache[expr] || returnAsCode) {
                     getterCacheCnt++;
-                    return getterCache[expr] = wrapFunc(new f(
-                        '____',
-                        '$$interceptor',
-                        '$$itself',
-                        "".concat(fnBodyStart, 'return ', expr.replace(REG_REPLACE_EXPR, '$1____.$3'), getterBodyEnd)
-                    ), true);
+
+                    var body = "".concat(
+                        fnBodyStart,
+                        'return ',
+                        expr.replace(REG_REPLACE_EXPR, REG_REPLACER),
+                        getterBodyEnd
+                    );
+
+                    if (returnAsCode) {
+                        return "function(____) {" + body + "}";
+                    }
+                    else {
+                        return getterCache[expr] = new f(
+                            '____',
+                            body
+                        );
+                    }
                 }
                 return getterCache[expr];
             }
@@ -758,18 +1174,23 @@ var functionFactory = function() {
         setterCache     = {},
         setterCacheCnt  = 0,
 
-        createSetter    = function createSetter(expr) {
+        createSetter    = function createSetter(expr, returnAsCode) {
             try {
-                if (!setterCache[expr]) {
+                if (!setterCache[expr] || returnAsCode) {
                     setterCacheCnt++;
-                    var code = expr.replace(REG_REPLACE_EXPR, '$1____.$3');
-                    return setterCache[expr] = wrapFunc(new f(
-                        '____',
-                        '$$$$',
-                        '$$interceptor',
-                        '$$itself',
-                        "".concat(fnBodyStart, code, ' = $$$$', setterBodyEnd)
-                    ));
+                    var code = expr.replace(REG_REPLACE_EXPR, REG_REPLACER),
+                        body = "".concat(fnBodyStart, code, ' = $$$$', setterBodyEnd);
+
+                    if (returnAsCode) {
+                        return "function(____, $$$$) {" + body + "}";
+                    }
+                    else {
+                        return setterCache[expr] = new f(
+                            '____',
+                            '$$$$',
+                            body
+                        );
+                    }
                 }
                 return setterCache[expr];
             }
@@ -782,16 +1203,26 @@ var functionFactory = function() {
         funcCache       = {},
         funcCacheCnt    = 0,
 
-        createFunc      = function createFunc(expr) {
+        createFunc      = function createFunc(expr, returnAsCode) {
             try {
-                if (!funcCache[expr]) {
+                if (!funcCache[expr] || returnAsCode) {
                     funcCacheCnt++;
-                    return funcCache[expr] = wrapFunc(new f(
-                        '____',
-                        '$$interceptor',
-                        '$$itself',
-                        "".concat(fnBodyStart, expr.replace(REG_REPLACE_EXPR, '$1____.$3'), getterBodyEnd)
-                    ));
+
+                    var body = "".concat(
+                        fnBodyStart,
+                        expr.replace(REG_REPLACE_EXPR, REG_REPLACER),
+                        getterBodyEnd
+                    );
+
+                    if (returnAsCode) {
+                        return "function(____) {" + body + "}";
+                    }
+                    else {
+                        return funcCache[expr] = new f(
+                            '____',
+                            body
+                        );
+                    }
                 }
                 return funcCache[expr];
             }
@@ -817,11 +1248,10 @@ var functionFactory = function() {
         }
     };
 }();
-var createGetter, createFunc;
 
 
 
-createGetter = createFunc = functionFactory.createGetter;
+var createGetter = functionFactory.createGetter;
 
 
 
@@ -830,11 +1260,9 @@ var createSetter = functionFactory.createSetter;
 
 
 
-module.exports = function(){
+var Watchable = function(){
 
-    var nativeObserver  = Object.observe && isNative(Object.observe),
-
-        isStatic    = function(val) {
+    var isStatic    = function(val) {
 
             if (!isString(val)) {
                 return true;
@@ -843,8 +1271,8 @@ module.exports = function(){
             var first   = val.substr(0, 1),
                 last    = val.length - 1;
 
-            if (first == '"' || first == "'") {
-                if (val.indexOf(first, 1) == last) {
+            if (first === '"' || first === "'") {
+                if (val.indexOf(first, 1) === last) {
                     return val.substring(1, last);
                 }
             }
@@ -875,13 +1303,13 @@ module.exports = function(){
 
                 action = prs[prsi];
 
-                if (action == 'D') {
+                if (action === 'D') {
                     continue;
                 }
 
                 k = getKey(a2[a2i]);
 
-                if (k != undf && used[k] !== true && (index = map1[k]) !== undf) {
+                if (k !== undf && used[k] !== true && (index = map1[k]) !== undf) {
                     newPrs.push(index);
                     used[k] = true;
                 }
@@ -906,57 +1334,51 @@ module.exports = function(){
      * @param {string} code property name or custom code
      * @param {function} fn optional listener
      * @param {object} fnScope optional listener's "this" object
-     * @param {*} userData optional data to pass to the listener
-     * @param {Namespace} namespace optional namespace to get filters and pipes from
+     *  @subparam {*} userData optional data to pass to the listener
+     *  @subparam {function} filterLookup
+     *  @subparam {*} mock do not calculate real values, use mock instead
+     *  @subparam {function} predefined getter fn
+     * @param {object} opt
      * @constructor
      */
-    var Watchable   = function(dataObj, code, fn, fnScope, userData, namespace) {
+    var Watchable   = function(dataObj, code, fn, fnScope, opt) {
 
         if (!observable) {
             observable  = new Observable;
         }
 
+        opt = opt || {};
+
         var self    = this,
             id      = nextUid(),
-            type,
-            useObserver = false;
+            type;
 
-        if (namespace) {
-            self.namespace = namespace;
-            self.nsGet = namespace.get;
+        if (opt.filterLookup) {
+            self.filterLookup = opt.filterLookup;
         }
 
+        self.mock = opt.mock;
         self.origCode = code;
 
-        if (!isString(code)) {
-            fnScope = fn;
-            fn      = code;
-            code    = null;
-            type    = "object";
+        if (opt.mock && code.indexOf(".") === -1) {
+            type = "attr";
         }
-        if (isString(dataObj)) {
-            fnScope = fn;
-            fn      = code;
-            code    = dataObj;
-            dataObj = null;
-        }
-
-        if (code && dataObj) {
+        else if (code && dataObj) {
             type    = dataObj.hasOwnProperty(code) ? "attr" : "expr";
         }
-        if (code && !dataObj) {
-            type    = "expr";
+        else if (code && !dataObj) {
+            type = "expr";
         }
 
 
         if (fn) {
             observable.on(id, fn, fnScope || this, {
-                append: [userData],
+                append: [opt.userData],
                 allowDupes: true
             });
         }
 
-        if (type == "expr") {
+        if (type === "expr") {
             code        = self._parsePipes(code, dataObj, true);
             code        = self._parsePipes(code, dataObj, false);
 
@@ -970,31 +1392,17 @@ module.exports = function(){
             }
         }
 
-        self.userData   = userData;
+        self.userData   = opt.userData;
         self.code       = code;
         self.id         = id;
         self.type       = type;
         self.obj        = dataObj;
 
-        if (type == "expr") {
-            self.getterFn   = createGetter(code);
+        if (type === "expr") {
+            self.getterFn   = opt.getterFn || createGetter(code);
         }
 
-        // Object.observe() doesn't work with expressions and may confuse more than help.
-        // so the only thing it does on change, it sets changed flag
-        // so that on the next digest cycle there wouldn't be any need
-        // to compare values.
-
-        // upd: still, the change event happens _after_ digest cycle
-        // so lets think some more. :(
-
-        /*if (type == "attr" && nativeObserver && !self.pipes && !self.inputPipes) {
-            self.curr   = self._getValue();
-            useObserver = isPrimitive(self.curr);
-        }
-        useObserver = false;*/
-
-        if (type != "static" || self.pipes) {
+        if (type !== "static" || self.pipes) {
             self.curr = self.curr || self._getValue();
             self.currCopy = isPrimitive(self.curr) ? self.curr : copy(self.curr);
         }
@@ -1002,17 +1410,15 @@ module.exports = function(){
             self.check = returnFalse;
             self.curr = self.prev = self.staticValue;
         }
-
-        /*if (useObserver) {
-            self.obsrvDelegate = bind(self.onObserverChange, self);
-            Object.observe(self.obj, self.obsrvDelegate);
-        }*/
     };
 
     extend(Watchable.prototype, {
 
-        namespace: null,
-        nsGet: null,
+        //namespace: null,
+        //nsGet: null,
+
+        filterLookup: null,
+
         staticValue: null,
         origCode: null,
         code: null,
@@ -1025,6 +1431,7 @@ module.exports = function(){
         curr: null,
         currCopy: null,
         prev: null,
+        unfilteredCopy: null,
         unfiltered: null,
         pipes: null,
         inputPipes: null,
@@ -1032,7 +1439,30 @@ module.exports = function(){
         userData: null,
         obsrvDelegate: null,
         obsrvChanged: false,
+        forcePipes: false,
 
+        mock: false,
+
+        // means that pipes always return the same output given the same input.
+        // if you want to mark pipe as undeterministic - put ? before it
+        // {{ .somevalue | ?pipe }}
+        // then value will be passed through all pipes on each check.
+        deterministic: true,
+
+        getConfig: function() {
+            var getterFn = null;
+            if (this.type === "expr") {
+                getterFn   = createGetter(this.code, true);
+            }
+            return {
+                type: this.type,
+                code: this.origCode,
+                withoutPipes: this.code,
+                getter: getterFn,
+                hasPipes: this.pipes !== null,
+                hasInputPipes: this.inputPipes !== null
+            }
+        },
 
         _indexArrayItems: function(a) {
 
@@ -1057,7 +1487,7 @@ module.exports = function(){
                 propName    = input ? "inputPipes" : "pipes",
                 cb          = input ? self.onInputParamChange : self.onPipeParamChange;
 
-            if (text.indexOf(separator) == -1) {
+            if (text.indexOf(separator) === -1) {
                 return text;
             }
 
@@ -1069,7 +1499,7 @@ module.exports = function(){
 
             for(i = 0, l = parts.length; i < l; i++) {
                 pipe = split(trim(parts[i]), ':');
-                self._addPipe(pipes, pipe, dataObj, cb);
+                self._addPipe(pipes, pipe, dataObj, cb, false);
             }
 
             if (pipes.length) {
@@ -1079,41 +1509,130 @@ module.exports = function(){
             return trim(ret);
         },
 
-        _addPipe: function(pipes, pipe, dataObj, onParamChange) {
+        prependInuptPipe: function() {
+            this.inputPipes = this.inputPipes || [];
+            this._addPipe(
+                this.inputPipes,
+                toArray(arguments),
+                this.obj,
+                this.onInputParamChange,
+                true
+            );
+        },
+        addInuptPipe: function() {
+            this.inputPipes = this.inputPipes || [];
+            this._addPipe(
+                this.inputPipes,
+                toArray(arguments),
+                this.obj,
+                this.onInputParamChange,
+                false
+            );
+        },
+
+        addPipe: function() {
+            this.pipes = this.pipes || [];
+            this._addPipe(
+                this.pipes,
+                toArray(arguments),
+                this.obj,
+                this.onPipeParamChange,
+                false
+            );
+        },
+        prependPipe: function() {
+            this.pipes = this.pipes || [];
+            this._addPipe(
+                this.pipes,
+                toArray(arguments),
+                this.obj,
+                this.onPipeParamChange,
+                true
+            );
+        },
+
+        _addPipe: function(pipes, pipe, dataObj, onParamChange, prepend) {
 
             var self    = this,
                 name    = pipe.shift(),
-                fn      = null,
+                fn      = isFunction(name) ? name : null,
                 ws      = [],
-                negative= false,
+                fchar   = fn ? null : name.substr(0,1),
+                opt     = {
+                    neg: false,
+                    dblneg: false,
+                    undeterm: false,
+                    name: name
+                },
                 i, l;
 
-            if (name.substr(0,1) == "!") {
-                name = name.substr(1);
-                negative = true;
+            if (!fn) {
+                if (name.substr(0, 2) === "!!") {
+                    name = name.substr(2);
+                    opt.dblneg = true;
+                }
+                else {
+                    if (fchar === "!") {
+                        name = name.substr(1);
+                        opt.neg = true;
+                    }
+                    else if (fchar === "?") {
+                        name = name.substr(1);
+                        opt.undeterm = true;
+                    }
+                }
+            }
+            else {
+                opt.name = fn.name;
             }
 
-            if (self.nsGet) {
-                fn      = self.nsGet("filter." + name, true);
+            if (self.mock) {
+                fn      = function(){};
             }
-            if (!fn) {
-                fn      = (typeof window != "undefined" ? window[name] : null) || dataObj[name];
+            else {
+                if (!fn && self.filterLookup) {
+                    fn = self.filterLookup(name);
+                }
+                if (!fn) {
+                    fn = (typeof window !== "undefined" ? window[name] : null) || dataObj[name];
+                }
             }
+
+            //console.log(!!self.nsGet, name, fn)
 
             if (isFunction(fn)) {
 
                 for (i = -1, l = pipe.length; ++i < l;
-                     ws.push(create(dataObj, pipe[i], onParamChange, self, null, self.namespace))) {}
+                     ws.push(create(
+                         dataObj,
+                         pipe[i],
+                         onParamChange,
+                         self,
+                         {
+                             filterLookup: self.filterLookup,
+                             mock: self.mock
+                         }
+                     ))) {}
 
-                pipes.push([fn, pipe, ws, negative]);
+                if (fn.$undeterministic) {
+                    opt.undeterm = true;
+                }
+
+                pipes[prepend?"unshift":"push"]([fn, pipe, ws, opt]);
+
+                if (opt.undeterm) {
+                    self.deterministic = false;
+                }
             }
         },
 
-
-        _getValue: function() {
-
+        _getRawValue: function() {
             var self    = this,
                 val;
+
+            if (self.mock) {
+                return self.mock;
+            }
 
             switch (self.type) {
                 case "static":
@@ -1131,7 +1650,6 @@ module.exports = function(){
                     break;
             }
 
-
             if (isArray(val)) {
                 if (!self.inputPipes) {
                     self._indexArrayItems(val);
@@ -1139,9 +1657,22 @@ module.exports = function(){
                 val = val.slice();
             }
 
+            return val;
+        },
+
+        _getValue: function(useUnfiltered) {
+
+            var self    = this,
+                val     = useUnfiltered ? self.unfiltered : self._getRawValue();
+
             self.unfiltered = val;
 
-            val = self._runThroughPipes(val, self.pipes);
+            if (self.mock) {
+                val = self.mock;
+            }
+            else {
+                val = self._runThroughPipes(val, self.pipes);
+            }
 
             return val;
         },
@@ -1156,12 +1687,12 @@ module.exports = function(){
                     self    = this,
                     jlen    = pipes.length,
                     dataObj = self.obj,
-                    neg,
+                    opt,
                     z, zl;
 
                 for (j = 0; j < jlen; j++) {
                     exprs   = pipes[j][1];
-                    neg     = pipes[j][3];
+                    opt     = pipes[j][3];
                     args    = [];
                     for (z = -1, zl = exprs.length; ++z < zl;
                          args.push(evaluate(exprs[z], dataObj))){}
@@ -1171,8 +1702,11 @@ module.exports = function(){
 
                     val     = pipes[j][0].apply(null, args);
 
-                    if (neg) {
+                    if (opt.neg) {
                         val = !val;
+                    }
+                    else if (opt.dblneg) {
+                        val = !!val;
                     }
                 }
             }
@@ -1216,6 +1750,41 @@ module.exports = function(){
         },
 
         /**
+         * @param {function|string} p
+         * @returns {boolean}
+         */
+        hasPipe: function(p) {
+            return this._hasPipe(this.pipes, p);
+        },
+
+        /**
+         * @param {function|string} p
+         * @returns {boolean}
+         */
+        hasInputPipe: function(p) {
+            return this._hasPipe(this.inputPipes, p);
+        },
+
+        /**
+         * @param {array} pipes
+         * @param {function|string} p
+         * @returns {boolean}
+         */
+        _hasPipe: function(pipes, p) {
+            if (!pipes) {
+                return false;
+            }
+            var i, l, name;
+            name = isFunction(p) ? p.name : p;
+            for (i = 0, l = pipes.length; i < l; i++) {
+                if (pipes[i][3].name === name) {
+                    return true;
+                }
+            }
+            return false;
+        },
+
+        /**
          * Get current value (filtered and via executing the code)
          * @returns {*}
          */
@@ -1237,6 +1806,14 @@ module.exports = function(){
          */
         getPrevValue: function() {
             return this.prev;
+        },
+
+        /**
+         * Get last calculated value (with filters and pipes)
+         * @returns {*}
+         */
+        getLastValue: function() {
+            return this.curr;
         },
 
         /**
@@ -1283,10 +1860,10 @@ module.exports = function(){
 
             val = self._runThroughPipes(val, self.inputPipes);
 
-            if (type == "attr") {
+            if (type === "attr") {
                 self.obj[self.code] = val;
             }
-            else if (type == "expr") {
+            else if (type === "expr") {
 
                 if (!self.setterFn) {
                     self.setterFn   = createSetter(self.code);
@@ -1294,7 +1871,7 @@ module.exports = function(){
 
                 self.setterFn(self.obj, val);
             }
-            else if (type == "object") {
+            else if (type === "object") {
                 self.obj = val;
             }
         },
@@ -1307,10 +1884,12 @@ module.exports = function(){
         },
 
         onPipeParamChange: function(val, prev, async) {
+            this.forcePipes = true;
             this.check();
+            this.forcePipes = false;
         },
 
-        onObserverChange: function(changes) {
+        /*onObserverChange: function(changes) {
 
             var self = this,
                 code = self.code,
@@ -1324,28 +1903,60 @@ module.exports = function(){
                     break;
                 }
             }
-        },
+        },*/
 
         _check: function(async) {
 
             var self    = this,
-                val     = self._getValue(),
-                curr    = self.currCopy,
-                eq;
+                val;
 
-            if (self.obsrvDelegate) {
-                eq      = !self.obsrvChanged;
+            if (self.deterministic && self.pipes && !self.forcePipes) {
+                if (!self._checkUnfiltered()) {
+                    return false;
+                }
+                else {
+                    // code smell.
+                    // useUnfiltered param implies that
+                    // _checkUnfiltered has been called.
+                    val = self._getValue(true);
+                }
             }
             else {
-                eq      = equals(curr, val);
+                val     = self._getValue();
             }
+
+            var curr    = self.currCopy,
+                eq      = equals(curr, val);
+
+            //if (self.obsrvDelegate) {
+            //    eq      = !self.obsrvChanged;
+            //}
+            //else {
+            //    eq      = equals(curr, val);
+            //}
 
             if (!eq) {
                 self.curr = val;
                 self.prev = curr;
                 self.currCopy = isPrimitive(val) ? val : copy(val);
-                self.obsrvChanged = false;
+                //self.obsrvChanged = false;
                 observable.trigger(self.id, val, curr, async);
+                return true;
+            }
+
+            return false;
+        },
+
+        _checkUnfiltered: function() {
+
+            var self    = this,
+                val     = self._getRawValue(),
+                curr    = self.unfilteredCopy,
+                eq      = equals(curr, val);
+
+            if (!eq) {
+                self.unfiltered = val;
+                self.unfilteredCopy = isPrimitive(val) ? val : copy(val);
                 return true;
             }
 
@@ -1412,6 +2023,10 @@ module.exports = function(){
 
             var self    = this,
                 id      = self.id;
+            
+            if (!id) {
+                return false;
+            }
 
             if (fn) {
                 observable.un(id, fn, fnScope);
@@ -1458,9 +2073,9 @@ module.exports = function(){
                 }
             }
 
-            if (self.obsrvDelegate) {
-                Object.unobserve(self.obj, self.obsrvDelegate);
-            }
+            //if (self.obsrvDelegate) {
+            //    Object.unobserve(self.obj, self.obsrvDelegate);
+            //}
 
             if (self.obj) {
                 //delete self.obj.$$watchers.$codes[self.origCode];
@@ -1485,13 +2100,15 @@ module.exports = function(){
      * @param {string} code
      * @param {function} fn
      * @param {object} fnScope
-     * @param {*} userData
-     * @param {Namespace} namespace
+     * @param {object} opt
      * @returns {Watchable}
      */
-    var create = function(obj, code, fn, fnScope, userData, namespace) {
+    var create = function(obj, code, fn, fnScope, opt) {
 
-            code = normalizeExpr(obj, trim(code));
+            opt = opt || {};
+            code = code || "";
+
+            code = normalizeExpr(obj, trim(code), opt.mock);
 
             if (obj) {
                 if (!obj.$$watchers) {
@@ -1529,16 +2146,18 @@ module.exports = function(){
                 }
 
                 if (obj.$$watchers.$codes[code]) {
-                    obj.$$watchers.$codes[code].subscribe(fn, fnScope, {append: [userData], allowDupes: true});
+                    obj.$$watchers.$codes[code].subscribe(fn, fnScope,
+                        {append: [opt.userData || null], allowDupes: true});
                 }
                 else {
-                    obj.$$watchers.$codes[code] = new Watchable(obj, code, fn, fnScope, userData, namespace);
+                    obj.$$watchers.$codes[code] = new Watchable(
+                        obj, code, fn, fnScope, opt);
                 }
 
                 return obj.$$watchers.$codes[code];
             }
             else {
-                return new Watchable(obj, code, fn, fnScope, userData, namespace);
+                return new Watchable(obj, code, fn, fnScope, opt);
             }
         },
 
@@ -1565,16 +2184,41 @@ module.exports = function(){
          * Normalize expression
          * @param {object} dataObj
          * @param {string} expr
+         * @param {*} mockMode
          * @returns {string}
          */
-        normalizeExpr = function(dataObj, expr) {
+        normalizeExpr = function(dataObj, expr, mockMode) {
+
+            if (expr.substr(0, 2) === '{{') {
+                expr = expr.substring(2, expr.length - 2);
+            }
+
+            // in mock mode we can't check dataObj for having
+            // a property. dataObj does not exists in this
+            // context
+            if (mockMode) {
+                var match;
+                if ((match = expr.match(/(^|this)\.([A-Z0-9_$]+)$/i)) !== null) {
+                    return match[2];
+                }
+                else {
+                    return expr;
+                }
+            }
+
             if (dataObj && expr) {
                 if (dataObj.hasOwnProperty(expr)) {
                     return expr;
                 }
                 var prop;
-                if (expr.charAt(0) == '.') {
+                if (expr.charAt(0) === '.') {
                     prop = expr.substr(1);
+                    if (dataObj.hasOwnProperty(prop)) {
+                        return prop;
+                    }
+                }
+                else if (expr.substr(0, 5) === "this.") {
+                    prop = expr.substr(5);
                     if (dataObj.hasOwnProperty(prop)) {
                         return prop;
                     }
@@ -1587,14 +2231,21 @@ module.exports = function(){
          * Evaluate code against object
          * @param {string} expr
          * @param {object} scope
+         * @param {object} opt
          * @returns {*}
          */
-        evaluate    = function(expr, scope) {
+        evaluate    = function(expr, scope, opt) {
             var val;
             if (val = isStatic(expr)) {
                 return val;
             }
-            return createGetter(expr)(scope);
+            if (expr.indexOf('|') === -1) {
+                return createGetter(expr)(scope);
+            }
+            var w = create(scope, expr, null, null, opt),
+                v = w.getValue();
+            w.unsubscribeAndDestroy();
+            return v;
         };
 
 
@@ -1603,12 +2254,11 @@ module.exports = function(){
     Watchable.unsubscribeAndDestroy = unsubscribeAndDestroy;
     Watchable.normalizeExpr = normalizeExpr;
     Watchable.eval = evaluate;
-    Watchable.usesNativeObserver = function() {
-        return nativeObserver;
-    };
 
     return Watchable;
 }();
 
 
 
+module.exports = Watchable;
+/* BUNDLE END 003 */

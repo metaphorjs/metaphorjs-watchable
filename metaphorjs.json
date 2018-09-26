@@ -8,60 +8,52 @@
     ],
     "build": {
         "standalone": {
-            "wrap": true,
-            "global": true,
             "target": "dist/metaphorjs.watchable.js",
             "files": [
-                [
-                    "src/lib/Watchable.js",
-                    {
-                        "as": "Watchable"
-                    }
+                ["src/lib/Watchable.js", {"as": "*"}]
+            ],
+            "options": {
+                "wrap": true,
+                "global": true,
+                "expose": [
+                    "Watchable"
                 ]
-            ],
-            "expose": [
-                "Watchable"
-            ]
-        },
-        "npm": {
-            "auto": true,
-            "target": "dist/metaphorjs.watchable.npm.js",
-            "compile": false,
-            "files": [
-                [
-                    "src/lib/Watchable.js",
-                    {
-                        "keepExports": true
-                    }
-                ]
-            ],
-            "omit": [
-                "metaphorjs-observable/src/lib/Observable.js"
-            ],
-            "require": {
-                "metaphorjs-observable": "Observable"
             }
         },
-        "amd": {
-            "auto": false,
-            "target": "dist/metaphorjs.watchable.amd.js",
+        "npm": {
+            "target": "dist/metaphorjs.watchable.npm.js",
             "files": [
-                [
-                    "src/lib/Watchable.js",
-                    {
-                        "returnExports": true
-                    }
-                ]
+                ["src/lib/Watchable.js", {"as": "*"}]
             ],
             "omit": [
                 "metaphorjs-observable/src/lib/Observable.js"
             ],
-            "define": {
-                "name": "metaphorjs-watchable",
-                "deps": {
+            "options": {
+                "exports": "Watchable",
+                "require": {
                     "metaphorjs-observable": "Observable"
                 }
             }
+            
+        },
+        "amd": {
+            "target": "dist/metaphorjs.watchable.amd.js",
+            "files": [
+                ["src/lib/Watchable.js", {"as": "*"}]
+            ],
+            "omit": [
+                "metaphorjs-observable/src/lib/Observable.js"
+            ],
+            "options": {
+                "amd": {
+                    "name": "metaphorjs-watchable",
+                    "return": "Watchable",
+                    "deps": {
+                        "metaphorjs-observable": "Observable"
+                    }
+                }
+            }
+            
         }
     }
 }
